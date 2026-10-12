@@ -15,6 +15,17 @@ def field(name, op, **values):
 
 
 class SearchTests(unittest.TestCase):
+    def setUp(self):
+        # 名称校验会调用get_options；禁止其后台联网刷新，避免解释器退出时
+        # 守护线程仍在SSL请求中（Ubuntu/Python3.10可出现退出阶段崩溃）。
+        import field_options as fo
+        refresh = patch.object(fo, "_bg_refresh")
+        refresh.start()
+        self.addCleanup(refresh.stop)
+        network = patch.object(fo, "_http_json", side_effect=OSError("offline unit test"))
+        network.start()
+        self.addCleanup(network.stop)
+
     def test_collection_conditions_are_and_not_intersection(self):
         conditions = [field("services", "in", values=["Market"]),
                       field("services", "in", values=["Shipyard"])]
