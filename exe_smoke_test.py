@@ -8,6 +8,7 @@ import time
 def run(gui, report_path):
     report = {"ok": False, "frozen": bool(getattr(sys, "frozen", False))}
     root = None
+    app = None
     try:
         import field_options as fo
         import powerplay_gui
@@ -22,6 +23,7 @@ def run(gui, report_path):
         callback_errors = []
         root.report_callback_exception = lambda *args: callback_errors.append(str(args[1]))
         app = gui.App(root)
+        app._closing = True  # 禁用自动保存，避免加载验证覆盖正常会话。
         root.withdraw()
         app.clear()
         row = gui.Row(app.inner, "stations")
@@ -50,6 +52,8 @@ def run(gui, report_path):
         report["error"] = f"{type(exc).__name__}: {exc}"
     finally:
         if root is not None:
+            if app is not None:
+                app._closing = True  # 加载冒烟不写回用户会话。
             root.destroy()
         # 调用者提供已存在的报告目录；不向单文件解包目录写入用户数据。
         with open(os.path.abspath(report_path), "w", encoding="utf-8") as f:

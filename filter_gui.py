@@ -22,6 +22,7 @@ from spansh_filter import (STATION_FIELDS, SYSTEM_FIELDS, STATION_FIELDS_CN,
                              SYSTEM_FIELDS_CN, field_label, parse_field_label)
 import filter_engine as eng
 import field_options as fo
+import session_store
 from runtime_paths import data_file
 
 OP_LABELS = ["属于其一", "不属于", "等于", "不等于", "包含",
@@ -706,6 +707,15 @@ class Row:
             pop.hide()
         self.frame.destroy()
 
+    def editor_state(self):
+        """保存原始输入，未填完整或暂时非法的条件也能继续编辑。"""
+        if self.type == "distance":
+            return dict(type="distance", ref=self.ref.get(), min=self.vmin.get(),
+                        max=self.vmax.get(), mode=self.mode.get())
+        return dict(type="field", field=parse_field_label(self.field.get()), op=self.op.get(),
+                    value=self.val.get(), **{"class": self.v_class.get(),
+                    "rating": self.v_rating.get(), "fresh": self.v_fresh.get()})
+
     def to_cond(self):
         if self.type == "distance":
             def num(s):
@@ -786,6 +796,10 @@ class App:
         root.geometry("1120x720")
         self.rows = []
         self.results = []
+        self._tool_states = {}
+        self._tool_collectors = {}
+        self._last_session_state = None
+        self._closing = False
 
         top = ttk.Frame(root, padding=(6, 6, 6, 2))
         top.pack(fill="x")
@@ -862,6 +876,7 @@ class App:
         # 恢复上次关闭时的条件; 没有则从空开始
         self.restore_session()
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.root.after(1500, self._autosave_session)
 
     def refresh_fields(self):
         self.rows = [r for r in self.rows if r.frame.winfo_exists()]
@@ -946,9 +961,31 @@ class App:
         self.clear()
         if d.get("kind") in ("stations", "systems"):
             self.kind.set(d["kind"])
-        for c in d.get("conditions", []):
-            if isinstance(c, dict):
-                self._append_cond(c)
+        if isinstance(d.get("rows"), list):
+            for saved in d["rows"]:
+                if not isinstance(saved, dict) or saved.get("type") not in ("field", "distance"):
+                    continue
+                r = Row(self.inner, self.kind.get(), saved["type"])
+                if saved["type"] == "distance":
+                    for variable, key in ((r.ref, "ref"), (r.vmin, "min"),
+                                          (r.vmax, "max"), (r.mode, "mode")):
+                        if isinstance(saved.get(key), str):
+                            variable.set(saved[key])
+                else:
+                    r.field.set(field_label(self.kind.get(), str(saved.get("field") or "name")))
+                    for variable, key in ((r.op, "op"), (r.val, "value"), (r.v_class, "class"),
+                                          (r.v_rating, "rating"), (r.v_fresh, "fresh")):
+                        if isinstance(saved.get(key), str):
+                            variable.set(saved[key])
+                    r.refresh_options()
+                self.rows.append(r)
+        else:
+            for c in d.get("conditions", []):
+                if isinstance(c, dict):
+                    self._append_cond(c)
+        if isinstance(d.get("tools"), dict):
+            self._tool_states.update({key: value for key, value in d["tools"].items()
+                                      if isinstance(value, dict)})
         if d.get("want") is not None:
             self.want.set(str(d["want"]))
         if d.get("maxpages") is not None:
@@ -957,38 +994,74 @@ class App:
     def _state_dict(self):
         try:
             conds = self.collect()
-        except ValueError:
-            # 有未填完的行也照样记住, 下次继续填 (跳过坏行)
+        except (ValueError, KeyError):
+            # conditions保留旧格式；完整编辑状态另存rows，不丢弃草稿行。
             conds = [c for r in self.rows if r.frame.winfo_exists()
                      for c in [self._try_cond(r)] if c is not None]
+        for key, collector in self._tool_collectors.items():
+            self._tool_states[key] = collector()
         return {"kind": self.kind.get(), "conditions": conds,
-                "want": self.want.get(), "maxpages": self.maxpages.get()}
+                "want": self.want.get(), "maxpages": self.maxpages.get(),
+                "rows": [r.editor_state() for r in self.rows if r.frame.winfo_exists()],
+                "tools": dict(self._tool_states)}
+
+    def bind_tool_state(self, key, window, variables):
+        """统一保存辅助窗口；关子窗口和关主窗口都能保存当前参数。"""
+        saved = self._tool_states.get(key, {})
+        for name, variable in variables.items():
+            value = saved.get(name)
+            if isinstance(variable, tk.BooleanVar):
+                if isinstance(value, bool):
+                    variable.set(value)
+            elif isinstance(value, str):
+                variable.set(value)
+        collector = lambda: {name: variable.get() for name, variable in variables.items()}
+        self._tool_collectors[key] = collector
+        window.session_variables = variables
+
+        def destroyed(event):
+            if event.widget is not window or self._closing:
+                return
+            self._tool_states[key] = collector()
+            if self._tool_collectors.get(key) is collector:
+                del self._tool_collectors[key]
+            self.save_session()
+
+        window.bind("<Destroy>", destroyed, add="+")
 
     @staticmethod
     def _try_cond(r):
         try:
             return r.to_cond()
-        except (ValueError, AttributeError, TypeError):
+        except (ValueError, AttributeError, TypeError, KeyError, tk.TclError):
             return None
 
     def save_session(self):
         try:
-            with open(SESSION_FILE, "w", encoding="utf-8") as f:
-                json.dump(self._state_dict(), f, ensure_ascii=False, indent=1)
-        except (OSError, ValueError):
-            pass
+            state = self._state_dict()
+            if state != self._last_session_state or not os.path.exists(SESSION_FILE):
+                session_store.save(SESSION_FILE, state)
+                self._last_session_state = state
+            return True
+        except (OSError, ValueError, tk.TclError) as exc:
+            self.status.set(f"会话保存失败：{exc}")
+            return False
+
+    def _autosave_session(self):
+        if not self._closing:
+            self.save_session()
+            self.root.after(1500, self._autosave_session)
 
     def restore_session(self):
-        try:
-            with open(SESSION_FILE, encoding="utf-8") as f:
-                d = json.load(f)
-        except (OSError, ValueError):
-            return
-        if isinstance(d, dict):
+        d = session_store.load(SESSION_FILE)
+        if d:
             self._apply_state(d)
 
     def on_close(self):
-        self.save_session()
+        if not self.save_session():
+            messagebox.showerror("会话保存失败", f"未关闭程序，请检查目录权限后重试。\n{SESSION_FILE}", parent=self.root)
+            return
+        self._closing = True
         fo.save_module_specs()
         self.root.destroy()
 
@@ -1399,6 +1472,8 @@ class App:
         button.pack(side="left", padx=6)
         ttk.Button(controls, text="停止", command=stop.set).pack(side="left")
         ttk.Button(controls, text="导出 CSV", command=export_rows).pack(side="left", padx=6)
+        self.bind_tool_state("carrier_parking", win, dict(reference=reference, radius=radius,
+                             pages=pages, candidates_only=candidates, exclude_permit=no_permit))
         def close():
             stop.set()
             win.destroy()
@@ -1490,6 +1565,8 @@ class App:
             threading.Thread(target=work, daemon=True).start()
 
         btn["command"] = run
+        self.bind_tool_state("midpoint", win, dict(a=va, b=vb, want=want,
+                             populated_only=pop_only, exclude_permit=no_permit))
 
     def export(self):
         if not self.results:
@@ -1511,6 +1588,12 @@ class App:
 
 
 if __name__ == "__main__":
+    if "--session-test" in sys.argv:
+        from exe_session_test import run
+        index = sys.argv.index("--session-test")
+        if index + 2 >= len(sys.argv):
+            raise SystemExit("--session-test requires write/read and a JSON report path")
+        raise SystemExit(run(sys.modules[__name__], sys.argv[index + 1], sys.argv[index + 2]))
     if "--smoke-test" in sys.argv:
         from exe_smoke_test import run
         index = sys.argv.index("--smoke-test")

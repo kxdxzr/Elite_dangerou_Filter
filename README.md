@@ -2,6 +2,8 @@
 
 基于 [Spansh](https://spansh.co.uk/) 数据的 Python 桌面工具，支持多条件筛选、买船与模块查询、航母车位估计，以及稀有商品目标查找。界面使用 tkinter，包含中文字段说明与英文游戏名称。
 
+**项目定位：它不一定比 Inara 更好用，但提供更全面、更灵活、可自由组合的筛选条件。** 适合将重复条件、多参考点距离、模块规格和数据新鲜度等要求组合起来，作为 Inara 常用查询之外的补充工具。
+
 仓库：[kxdxzr/Elite_dangerou_Filter](https://github.com/kxdxzr/Elite_dangerou_Filter)。
 
 本项目由 **GPT-6.1 Sol** 通过 **vibe coding** 完成，功能根据用户需求持续迭代。
@@ -38,6 +40,8 @@
 EXE 已作为 [GitHub Releases](https://github.com/kxdxzr/Elite_dangerou_Filter/releases) 附件发布；源码仓库默认忽略 `dist/` 和 `build/`。
 
 EXE 的会话和候选／规格缓存保存在 `%LOCALAPPDATA%\EliteDangerousFilter\`，不会存入单文件解包临时目录，因此关闭或移动 EXE 后仍能恢复。CSV 导出位置由用户选择。
+
+v0.1.0 的更新版 EXE 会保存主界面条件（包括未填完整的编辑行）以及稀有商品目标查找器、航母车位、两系中点的参数。程序每 1.5 秒检查并自动保存变更，关闭主窗口或辅助窗口时也会保存；重新启动后打开对应工具即可恢复参数。写入采用原子替换；若关闭时保存失败，会提示错误并保留窗口，避免静默丢失设置。
 
 ### 从源码运行
 
@@ -110,6 +114,7 @@ python spansh_filter.py --kind systems --ref-system Sol --size 10 --filters-file
 | `rare_goods.py` | 商品来源表及候选筛选 |
 | `spansh_filter.py` | CLI 及字段说明 |
 | `runtime_paths.py` | 源码／EXE的持久数据目录 |
+| `session_store.py` | 会话原子读写 |
 | `EliteDangerousFilter.spec` | Windows 单文件 EXE 构建配置 |
 | `test_*.py` | 单元与回归测试 |
 
@@ -134,7 +139,7 @@ python -m unittest discover -v
 python -m compileall -q .
 ```
 
-目前包含 60 项自动化测试，覆盖条件规划、分页、距离几何、模块规格、新鲜度、航母统计、商品来源、势力分组、距离回退、排序限额、殖民船排除和运行数据路径。GitHub Actions 配置会在 Windows / Ubuntu 的 Python 3.10、3.13 环境运行这些检查。
+目前包含 67 项自动化测试，覆盖条件规划、分页、距离几何、模块规格、新鲜度、航母统计、商品来源、势力分组、距离回退、排序限额、殖民船排除、运行数据路径和会话持久化。GitHub Actions 配置会在 Windows / Ubuntu 的 Python 3.10、3.13 环境运行这些检查。
 
 GUI 交互和在线数据查询需另行实测，不包含在自动化测试中。
 
@@ -150,6 +155,8 @@ python -m PyInstaller --noconfirm --clean EliteDangerousFilter.spec
 输出 `dist/EliteDangerousFilter.exe`。构建会包含 Python、Tk 和内置数据；无需随附个人缓存或上次会话文件。
 
 可使用 `EliteDangerousFilter.exe --smoke-test <已存在目录中的报告.json>` 验证主界面、三个辅助窗口及内置模块／商品数据加载。此模式不执行在线查询，不保存 GUI 会话；可通过环境变量 `ELITE_FILTER_DATA_DIR` 指定独立的测试数据目录。
+
+会话跨进程验证使用独立的 `ELITE_FILTER_DATA_DIR`，先执行 `EliteDangerousFilter.exe --session-test write <报告.json>`，进程退出后再执行 `--session-test read <另一报告.json>`。它会验证自动保存、实际关闭／重新打开工具、关闭主程序、第二个进程恢复主界面草稿和三个工具的参数；不使用真实用户数据目录。
 
 ## 数据来源
 

@@ -1,0 +1,97 @@
+"""两个独立进程的真实GUI会话回归；调用者必须提供隔离数据目录。"""
+import json
+import os
+import sys
+import time
+
+
+ROWS = [
+    dict(type="distance", ref="Sol", min="", max="50", mode="范围内"),
+    dict(type="field", field="modules", op="属于其一", value="Fuel Scoop",
+         **{"class": "5", "rating": "B", "fresh": "近7天"}),
+    dict(type="distance", ref="", min="unfinished", max="", mode="范围外"),
+]
+TOOLS = {
+    "rare_goods": dict(reference="Leesti", minimum="205", maximum="219", pages="9",
+                       query="Azure", power="Yuri Grom", all_powers=True),
+    "carrier_parking": dict(reference="Lave", radius="45", pages="7",
+                            candidates_only=False, exclude_permit=False),
+    "midpoint": dict(a="Sol", b="Ngurii", want="15", populated_only=True, exclude_permit=True),
+}
+
+
+def run(gui, phase, report_path):
+    report = dict(ok=False, phase=phase, frozen=bool(getattr(sys, "frozen", False)))
+    root = None
+    closed = False
+    try:
+        if not os.environ.get("ELITE_FILTER_DATA_DIR"):
+            raise ValueError("Session tests require an isolated ELITE_FILTER_DATA_DIR")
+        if phase not in ("write", "read"):
+            raise ValueError("Phase must be write or read")
+        import field_options as fo
+        import powerplay_gui
+        import session_store
+
+        fo.prefetch_common = lambda *args, **kwargs: None
+        fo.get_options = lambda kind, field: list(fo.BUNDLED_OPTIONS.get(f"{kind}/{field}", []))
+        root = gui.tk.Tk()
+        root.withdraw()
+        errors = []
+        root.report_callback_exception = lambda *args: errors.append(str(args[1]))
+        app = gui.App(root)
+        root.withdraw()
+        if phase == "write":
+            app._apply_state(dict(kind="stations", rows=ROWS, want="17", maxpages="6"))
+        else:
+            restored = app._state_dict()
+            assert restored["rows"] == ROWS, restored["rows"]
+            assert restored["want"] == "17" and restored["maxpages"] == "6"
+            assert restored["tools"] == TOOLS, restored["tools"]
+
+        rare = powerplay_gui.open_window(app, gui.data_age)
+        app.carrier_parking_window()
+        app.midpoint_window()
+        windows = {"rare_goods": rare}
+        for window in root.winfo_children():
+            if isinstance(window, gui.tk.Toplevel):
+                if window.title() == "航母车位查找":
+                    windows["carrier_parking"] = window
+                elif window.title().startswith("两系中点"):
+                    windows["midpoint"] = window
+        for key, window in windows.items():
+            for name, value in TOOLS[key].items():
+                variable = window.session_variables[name]
+                if phase == "write":
+                    variable.set(value)
+                else:
+                    assert variable.get() == value, (key, name, variable.get(), value)
+        if phase == "write":
+            # 不调用手动保存，确认周期自动保存确实包含草稿行和所有活动工具。
+            deadline = time.monotonic() + 1.8
+            while time.monotonic() < deadline:
+                root.update()
+                time.sleep(0.02)
+            automatic = session_store.load(gui.SESSION_FILE)
+            assert automatic["rows"] == ROWS and automatic["tools"] == TOOLS, automatic
+            # 实际执行子窗口关闭协议，再打开，确认设置不丢失。
+            rare.tk.call(rare.protocol("WM_DELETE_WINDOW"))
+            assert "rare_goods" not in app._tool_collectors
+            rare = powerplay_gui.open_window(app, gui.data_age)
+            assert {name: var.get() for name, var in rare.session_variables.items()} == TOOLS["rare_goods"]
+        root.update()
+        assert not errors, errors
+        assert app._state_dict()["rows"] == ROWS
+        app.on_close()
+        closed = True
+        persisted = session_store.load(gui.SESSION_FILE)
+        assert persisted["rows"] == ROWS and persisted["tools"] == TOOLS, persisted
+        report.update(ok=True, session_file=gui.SESSION_FILE, rows=persisted["rows"], tools=persisted["tools"])
+    except Exception as exc:
+        report["error"] = f"{type(exc).__name__}: {exc}"
+    finally:
+        if root is not None and not closed:
+            root.destroy()
+        with open(report_path, "w", encoding="utf-8") as file:
+            json.dump(report, file, ensure_ascii=False, indent=2)
+    return 0 if report["ok"] else 1

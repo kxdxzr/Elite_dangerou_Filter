@@ -210,6 +210,12 @@ def open_window(app, data_age):
     ttk.Button(footer, text="导出全部组 CSV", command=export).pack(side="left")
     ttk.Button(footer, text="检索说明", command=notes).pack(side="left", padx=6)
 
+    app.bind_tool_state("rare_goods", win, dict(reference=reference, minimum=minimum,
+                        maximum=maximum, pages=pages, query=query, power=power, all_powers=all_powers))
+    if reference.get() not in sources.SOURCE_SYSTEMS:
+        reference.set("Ngurii")
+    cb_power.configure(state="disabled" if all_powers.get() else "readonly")
+
     def close():
         stop.set()
         win.destroy()
