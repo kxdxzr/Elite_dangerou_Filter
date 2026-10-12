@@ -1,0 +1,3 @@
+# No third-party Python packages are required.
+# Runtime: Python 3.10+ with tkinter/Tk support.
+# Some Linux distributions install Tk separately (e.g. python3-tk).

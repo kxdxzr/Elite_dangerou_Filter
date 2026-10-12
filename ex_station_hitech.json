@@ -1,0 +1,6 @@
+{
+  "primary_economy": {"value": ["High Tech"]},
+  "has_market": {"value": true},
+  "has_large_pad": {"value": true},
+  "distance_to_arrival": {"comparison": "<=>", "value": [0, 5000]}
+}

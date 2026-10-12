@@ -1,0 +1,33 @@
+# Python-generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local Python environments
+.venv/
+venv/
+env/
+
+# Personal session and runtime caches
+/last_session.json
+/field_values_cache.json
+/module_specs_cache.json
+
+# Search exports
+*.csv
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local environment configuration
+.env
+.env.*
+
+# Executable build artifacts (publish EXE as a GitHub Release asset)
+/build/
+/dist/

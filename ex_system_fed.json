@@ -1,0 +1,6 @@
+{
+  "allegiance": {"value": ["Federation"]},
+  "primary_economy": {"value": ["High Tech"]},
+  "population": {"comparison": "<=>", "value": [1000000, 1000000000000000]},
+  "distance": {"max": 500}
+}

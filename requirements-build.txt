@@ -1,0 +1,2 @@
+# Build dependencies only; source execution has no third-party dependencies.
+pyinstaller==6.20.0
