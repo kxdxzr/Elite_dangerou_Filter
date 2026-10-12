@@ -31,9 +31,11 @@
 
 ### Windows EXE（不需要安装 Python）
 
+[**下载 Windows 单文件 EXE**](https://github.com/kxdxzr/Elite_dangerou_Filter/releases/latest/download/EliteDangerousFilter.exe) · [所有发行版本](https://github.com/kxdxzr/Elite_dangerou_Filter/releases)
+
 构建后的文件是 `dist/EliteDangerousFilter.exe`，双击即可启动，不需要额外的源码、缓存文件或 Python 环境。实际搜索需要联网。
 
-EXE 可作为 [GitHub Releases](https://github.com/kxdxzr/Elite_dangerou_Filter/releases) 附件发布；源码仓库默认忽略 `dist/` 和 `build/`。
+EXE 已作为 [GitHub Releases](https://github.com/kxdxzr/Elite_dangerou_Filter/releases) 附件发布；源码仓库默认忽略 `dist/` 和 `build/`。
 
 EXE 的会话和候选／规格缓存保存在 `%LOCALAPPDATA%\EliteDangerousFilter\`，不会存入单文件解包临时目录，因此关闭或移动 EXE 后仍能恢复。CSV 导出位置由用户选择。
 
