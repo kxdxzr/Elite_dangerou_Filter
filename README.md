@@ -180,13 +180,49 @@ CLI entry point: `python spansh_filter.py --help`. Main modules: `filter_gui.py`
 
 ## Screenshots / 截图
 
-Existing screenshots illustrate the main and rare-goods tools; they are not a complete view of the new PvE feature. Results change with upstream data.
+Screenshots cover the main window and all four tools, including Chinese and English views of the pirate finder. They show real GUI queries; results change with upstream data. The new tool captures were taken on 2026-10-14.
 
-现有截图展示主界面与稀有商品工具，并未覆盖新增 PvE 功能；具体查询结果会随数据更新而变化。
+截图覆盖主界面及全部四个辅助工具，包括海盗任务查找器的中英文视图。展示实际 GUI 查询结果，具体记录会随上游数据变化；本次新增工具截图拍摄于 2026-10-14。
+
+### Main window / 主界面
 
 ![Main GUI / 主界面](docs/images/main-gui.png)
 
+### Rare goods target finder / 稀有商品目标查找器
+
 ![Rare goods target finder / 稀有商品目标查找器](docs/images/rare-goods-target-finder.png)
+
+### Pirate massacre finder — Chinese, testing / 海盗任务查找器 — 中文，测试中
+
+Source faction, issuer count, landing pad and station/ring distance filters, RES Low priority, and separate source/target copy buttons.
+
+展示来源派系、任务派系数量、停机坪与站点／星环距离筛选、RES Low 优先，以及分别复制来源／目标的按钮。
+
+![Pirate massacre finder in Chinese / 海盗任务查找器中文](docs/images/pirate-massacre-finder-zh.png)
+
+### Pirate massacre finder — English and distance details, testing / 海盗任务查找器 — 英文及距离明细，测试中
+
+The same query after switching to English. The table is scrolled right to show the matching source station, pad, station arrival distance and target ringed body/distance; columns were widened for readability.
+
+同一查询切换为英文；表格向右滚动，展示匹配来源站、停机坪、站点到达距离及目标有环天体／距离，适当拉宽列以便阅读。
+
+![Pirate massacre finder in English / 海盗任务查找器英文](docs/images/pirate-massacre-finder-en.png)
+
+### Carrier parking finder / 航母车位查找器
+
+Sol within 15 ly, with station/carrier counts and parking estimates. These are recorded-data estimates, not live vacancies.
+
+Sol 周围 15 ly 的站点／航母统计及车位估计；这是已收录数据估计，不是实时空位。
+
+![Carrier parking finder / 航母车位查找器](docs/images/carrier-parking-finder.png)
+
+### System midpoint finder / 两系中点工具
+
+Nearest recorded systems to the Sol–Ngurii midpoint, with distance to the midpoint and both endpoints.
+
+查找 Sol 与 Ngurii 中点附近的已收录星系，分别展示距中点、距两端的距离。
+
+![System midpoint finder / 两系中点工具](docs/images/system-midpoint-finder.png)
 
 ## Data sources / 数据来源
 
