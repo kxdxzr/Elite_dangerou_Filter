@@ -1,6 +1,6 @@
 # Elite_dangerous_Filter
 
-[English](README.md) · [简体中文](README_zh-CN.md) · [发行版本](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
+[English](README.md) · [简体中文](README_zh-CN.md) · [发行版本 / Releases](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
 
 基于 [Spansh](https://spansh.co.uk/) 数据的 Elite Dangerous 星系与空间站筛选工具，使用 Python / tkinter，支持即时中英文切换。
 
@@ -90,7 +90,7 @@ CLI 示例：`python spansh_filter.py --help`；参数说明见 [筛选器说明
 
 ## 截图
 
-截图覆盖主界面及全部四个辅助工具，包括海盗任务查找器的中英文视图。展示实际 GUI 查询结果，具体记录会随上游数据变化；新增工具截图拍摄于 2026-10-14。所有工具均支持通过主界面的语言选择即时切换为英文。
+以下中文界面截图覆盖主界面及全部四个辅助工具，展示实际 GUI 查询结果，具体记录会随上游数据变化；新增工具截图拍摄于 2026-10-14。英文界面截图见 [英文 README](README.md#screenshots)，所有工具均支持通过主界面的语言选择即时切换为英文。
 
 ### 主界面
 
@@ -106,11 +106,11 @@ CLI 示例：`python spansh_filter.py --help`；参数说明见 [筛选器说明
 
 ![海盗任务查找器中文](docs/images/pirate-massacre-finder-zh.png)
 
-### 海盗任务查找器——英文及距离明细，测试中
+### 海盗任务查找器——站点及星环距离明细，测试中
 
-同一查询切换为英文；表格向右滚动，展示匹配来源站、停机坪、站点到达距离及目标有环天体／距离，适当拉宽列以便阅读。
+同一查询的表格向右滚动，展示匹配来源站、停机坪、站点到达距离及目标有环天体／距离，适当拉宽列以便阅读。
 
-![海盗任务查找器英文](docs/images/pirate-massacre-finder-en.png)
+![海盗任务查找器中文距离明细](docs/images/pirate-massacre-finder-details-zh.png)
 
 ### 航母车位查找器
 

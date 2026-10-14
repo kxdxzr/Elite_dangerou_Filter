@@ -227,6 +227,7 @@ def translate(text, language='zh'):
         return f"{key.replace('_', ' ').title()} ({key})"
     text = re.sub(r'近(\d+)天', r'Last \1 days', text)
     text = re.sub(r'数据(\d+)天内', r'data within \1 days', text)
+    text = re.sub(r'(\d+)\s*个(?=[；。])', r'\1', text)
     text = re.sub(r'等(\d+)项', r' and others (\1 items)', text)
     text = re.sub(r'距(?=[^\n]*ly范围[内外])', 'Distance to ', text)
     text = re.sub(r'=否(?=由本地过滤)', '=False', text)

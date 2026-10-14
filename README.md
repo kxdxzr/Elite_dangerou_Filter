@@ -90,23 +90,21 @@ CLI entry point: `python spansh_filter.py --help`. Main modules: `filter_gui.py`
 
 ## Screenshots
 
-Screenshots cover the main window and all four tools, including Chinese and English views of the pirate finder. They show real GUI queries; results change with upstream data. The new tool captures were taken on 2026-10-14.
-
-Some screenshots show the Chinese UI; every tool supports English through the main window's language selector.
+These English-interface screenshots cover the main window and all four tools. They show real GUI queries captured on 2026-10-14; results change with upstream data. For Chinese-interface screenshots, see the [Chinese README](README_zh-CN.md#截图).
 
 ### Main window
 
-![Main GUI](docs/images/main-gui.png)
+![Main GUI in English](docs/images/main-gui-en.png)
 
 ### Rare goods target finder
 
-![Rare goods target finder](docs/images/rare-goods-target-finder.png)
+![Rare goods target finder in English](docs/images/rare-goods-target-finder-en.png)
 
-### Pirate massacre finder — Chinese UI (testing)
+### Pirate massacre finder — filters and results (testing)
 
 Source faction, issuer count, landing pad and station/ring distance filters, RES Low priority, and separate source/target copy buttons.
 
-![Pirate massacre finder in Chinese](docs/images/pirate-massacre-finder-zh.png)
+![Pirate massacre finder filters and results in English](docs/images/pirate-massacre-finder-summary-en.png)
 
 ### Pirate massacre finder — English UI and distance details (testing)
 
@@ -118,13 +116,13 @@ The same query after switching to English. The table is scrolled right to show t
 
 Sol within 15 ly, with station/carrier counts and parking estimates. These are recorded-data estimates, not live vacancies.
 
-![Carrier parking finder](docs/images/carrier-parking-finder.png)
+![Carrier parking finder in English](docs/images/carrier-parking-finder-en.png)
 
 ### System midpoint finder
 
 Nearest recorded systems to the Sol–Ngurii midpoint, with distance to the midpoint and both endpoints.
 
-![System midpoint finder](docs/images/system-midpoint-finder.png)
+![System midpoint finder in English](docs/images/system-midpoint-finder-en.png)
 
 ## Data sources
 
