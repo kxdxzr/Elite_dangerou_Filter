@@ -2,14 +2,15 @@
 import csv
 import threading
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog
+from localized_tk import messagebox, ttk, Toplevel
 
 import powerplay_tool as tool
 import rare_goods as sources
 
 
 def open_window(app, data_age):
-    win = tk.Toplevel(app.root)
+    win = Toplevel(app.root)
     win.title("稀有商品目标查找器")
     win.geometry("1200x760")
     controls = ttk.Frame(win, padding=8)
@@ -135,10 +136,11 @@ def open_window(app, data_age):
             return
         with open(path, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
-            writer.writerow([title for _, _, title in columns])
+            writer.writerow([app.localizer.tr(title) for _, _, title in columns])
             for name, group in state["groups"].items():
                 for row in group["rows"]:
-                    writer.writerow(values(name, row))
+                    writer.writerow([app.localizer.tr(value) if index >= 5 else value
+                                     for index, value in enumerate(values(name, row))])
                 if not group["rows"]:
                     writer.writerow([tool.POWER_LABELS[name]] + [""] * (len(columns) - 1))
 

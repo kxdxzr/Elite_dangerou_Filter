@@ -24,6 +24,7 @@ def run(gui, report_path):
         root.report_callback_exception = lambda *args: callback_errors.append(str(args[1]))
         app = gui.App(root)
         app._closing = True  # 禁用自动保存，避免加载验证覆盖正常会话。
+        app.set_language("zh")
         root.withdraw()
         app.clear()
         row = gui.Row(app.inner, "stations")
@@ -36,6 +37,11 @@ def run(gui, report_path):
         assert window.title() == "稀有商品目标查找器"
         app.carrier_parking_window()
         app.midpoint_window()
+        pve = app.pve_window()
+        assert pve.title() == "海盗任务查找器"
+        app.set_language("en")
+        assert pve.title() == "Pirate massacre finder"
+        assert window.title() == "Rare goods target finder"
         end = time.monotonic() + 0.3
         while time.monotonic() < end:
             root.update()
@@ -46,7 +52,7 @@ def run(gui, report_path):
         assert len(fo.BUNDLED_OPTIONS["stations/modules"]) == 153
         report.update(ok=True, data_directory=data_directory(), session_file=gui.SESSION_FILE,
                       cache_file=fo.CACHE_FILE, specs_file=fo.SPECS_FILE,
-                      goods=142, sources=138, modules=153,
+                      goods=142, sources=138, modules=153, languages=["zh", "en"],
                       windows=[w.title() for w in root.winfo_children() if isinstance(w, gui.tk.Toplevel)])
     except Exception as exc:
         report["error"] = f"{type(exc).__name__}: {exc}"

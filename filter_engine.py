@@ -6,6 +6,7 @@ import re
 from datetime import datetime, timedelta, timezone
 import urllib.parse
 import urllib.request
+import gzip
 
 import field_options as fo
 
@@ -16,15 +17,20 @@ _coords_cache = {}
 _ref_cache = {}
 
 
-def _http_json(url, payload=None, timeout=60):
+def _http_json(url, payload=None, timeout=60, compressed=False):
     if payload is None:
         req = urllib.request.Request(url, headers={"User-Agent": "elite-filter/1.0"})
     else:
         req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                      headers={"Content-Type": "application/json",
                                               "User-Agent": "elite-filter/1.0"})
+    if compressed:
+        req.add_header('Accept-Encoding', 'gzip')
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode("utf-8"))
+        body = r.read()
+        if compressed and r.headers.get('Content-Encoding', '').casefold() == 'gzip':
+            body = gzip.decompress(body)
+        return json.loads(body.decode("utf-8"))
 
 
 def _lookup_exact(name):

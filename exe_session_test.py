@@ -17,6 +17,10 @@ TOOLS = {
     "carrier_parking": dict(reference="Lave", radius="45", pages="7",
                             candidates_only=False, exclude_permit=False),
     "midpoint": dict(a="Sol", b="Ngurii", want="15", populated_only=True, exclude_permit=True),
+    "pve": dict(reference="Sol", radius="0", min_factions="8", min_federation="2", min_empire="1",
+                source_faction="Mother Gaia", source_controller="Mother Gaia", target_controller="Test Pirates",
+                power="Yuri Grom", power_scope="双方", prefer_low=True, cnb_fallback=False,
+                source_pad="L", source_station_max_ls="500", target_ring_max_ls="1500"),
 }
 
 
@@ -42,22 +46,23 @@ def run(gui, phase, report_path):
         app = gui.App(root)
         root.withdraw()
         if phase == "write":
-            app._apply_state(dict(kind="stations", rows=ROWS, want="17", maxpages="6"))
+            app._apply_state(dict(kind="stations", rows=ROWS, want="17", maxpages="6", language="en"))
         else:
             restored = app._state_dict()
             assert restored["rows"] == ROWS, restored["rows"]
             assert restored["want"] == "17" and restored["maxpages"] == "6"
             assert restored["tools"] == TOOLS, restored["tools"]
+            assert restored["language"] == "en"
 
         rare = powerplay_gui.open_window(app, gui.data_age)
         app.carrier_parking_window()
         app.midpoint_window()
-        windows = {"rare_goods": rare}
+        windows = {"rare_goods": rare, "pve": app.pve_window()}
         for window in root.winfo_children():
             if isinstance(window, gui.tk.Toplevel):
-                if window.title() == "航母车位查找":
+                if getattr(window, "_raw_title", "") == "航母车位查找":
                     windows["carrier_parking"] = window
-                elif window.title().startswith("两系中点"):
+                elif getattr(window, "_raw_title", "").startswith("两系中点"):
                     windows["midpoint"] = window
         for key, window in windows.items():
             for name, value in TOOLS[key].items():
@@ -79,6 +84,11 @@ def run(gui, phase, report_path):
             assert "rare_goods" not in app._tool_collectors
             rare = powerplay_gui.open_window(app, gui.data_age)
             assert {name: var.get() for name, var in rare.session_variables.items()} == TOOLS["rare_goods"]
+            pve = windows["pve"]
+            pve.tk.call(pve.protocol("WM_DELETE_WINDOW"))
+            assert "pve" not in app._tool_collectors
+            pve = app.pve_window()
+            assert {name: var.get() for name, var in pve.session_variables.items()} == TOOLS["pve"]
         root.update()
         assert not errors, errors
         assert app._state_dict()["rows"] == ROWS
@@ -86,7 +96,8 @@ def run(gui, phase, report_path):
         closed = True
         persisted = session_store.load(gui.SESSION_FILE)
         assert persisted["rows"] == ROWS and persisted["tools"] == TOOLS, persisted
-        report.update(ok=True, session_file=gui.SESSION_FILE, rows=persisted["rows"], tools=persisted["tools"])
+        assert persisted["language"] == "en"
+        report.update(ok=True, session_file=gui.SESSION_FILE, rows=persisted["rows"], tools=persisted["tools"], language=persisted["language"])
     except Exception as exc:
         report["error"] = f"{type(exc).__name__}: {exc}"
     finally:

@@ -11,7 +11,9 @@ import sys
 import threading
 import tkinter as tk
 from datetime import datetime, timezone
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog
+from localized_tk import messagebox, ttk, Toplevel
+from i18n import Localizer
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -109,7 +111,7 @@ def data_age(ts):
 
 def open_multi_select(parent, title, options, current):
     """多选弹窗, 返回选中的 list[str] 或 None(取消)."""
-    win = tk.Toplevel(parent)
+    win = Toplevel(parent)
     win.title(title)
     win.geometry("340x420")
     win.transient(parent)
@@ -190,9 +192,16 @@ class SuggestPopup:
         for it in items:
             self.lb.insert("end", it)
         self.lb.selection_set(0)
-        self.lb.bind("<ButtonRelease-1>", lambda e: self._pick())
-        # 点击弹窗外部则关闭 (由输入框失焦处理, 这里兜底)
-        self.win.bind("<FocusOut>", lambda e: self.hide())
+        self.lb.bind("<ButtonPress-1>", self._pick)
+
+    def _pick(self, event):
+        """Select the clicked row before class bindings can move focus."""
+        if self.lb is not None:
+            index = self.lb.nearest(event.y)
+            self.lb.selection_clear(0, "end")
+            self.lb.selection_set(index)
+            self.pick_current()
+        return "break"
 
     def move(self, delta):
         if not self.lb or not self.win:
@@ -232,14 +241,32 @@ class SuggestPopup:
         self.anchor = None
 
 
-def attach_system_suggest(cb, textvar):
+def attach_system_suggest(cb, textvar, suggest=None, feedback=None):
     post = ui_dispatcher(cb)
     """给任意星系输入框接下方候选弹窗 (打字即弹, 上下选, 回车/点击确认)。"""
-    state = {"seq": 0, "hits": []}
+    state = {"seq": 0, "hits": [], "selecting": False, "last_text": textvar.get()}
+    provider = suggest or fo.suggest_systems
     pop = SuggestPopup.inst()
 
     def pick(val):
-        textvar.set(val)
+        cancel_timer()
+        state["seq"] += 1
+        state["selecting"] = True
+        try:
+            textvar.set(val)
+            state["last_text"] = val
+        finally:
+            state["selecting"] = False
+        if feedback:
+            feedback.set("已选择完整名称")
+
+    def cancel_timer():
+        if state.get("timer"):
+            try:
+                cb.after_cancel(state["timer"])
+            except tk.TclError:
+                pass
+            state["timer"] = None
 
     def on_key(event):
         if event.keysym in ("Down", "Up"):
@@ -248,36 +275,58 @@ def attach_system_suggest(cb, textvar):
                 return
             if state["hits"]:
                 pop.show(cb, state["hits"], pick)
+            else:
+                schedule()
             return
         if event.keysym in ("Return", "Tab"):
             if pop.visible_for(cb) and pop.pick_current():
                 return
             return
         if event.keysym == "Escape":
+            state["seq"] += 1
             pop.hide(cb)
+            cancel_timer()
             return
-        if state.get("timer"):
-            try:
-                cb.after_cancel(state["timer"])
-            except tk.TclError:
-                pass
-            state["timer"] = None
+        if textvar.get() != state["last_text"]:
+            changed()
+
+    def schedule():
+        cancel_timer()
+        state["seq"] += 1
+        state["hits"] = []
+        cb["values"] = []
+        pop.hide(cb)
+        text = textvar.get()
+        state["last_text"] = text
+        seq = state["seq"]
+        if len(text.strip()) < 2:
+            if feedback:
+                feedback.set("输入至少两个字符联想；选择候选后使用完整名称。")
+            return
+        if feedback:
+            feedback.set("正在查询名称候选…")
 
         def fire():
             state["timer"] = None
-            state["seq"] += 1
-            seq = state["seq"]
-            text = textvar.get()
 
             def work():
-                sug = fo.suggest_systems(text)
+                error = None
+                try:
+                    sug = provider(text)
+                except Exception as exc:
+                    sug, error = [], str(exc)
 
                 def apply():
-                    if seq != state["seq"] or not cb.winfo_exists():
+                    if seq != state["seq"] or text != textvar.get() or not cb.winfo_exists():
                         return
                     state["hits"] = sug
+                    if feedback:
+                        feedback.set("名称联想失败；可继续手动输入完整名称。" if error else
+                                     ("输入至少两个字符联想；选择候选后使用完整名称。" if len(text.strip()) < 2 else
+                                      ("请选择候选完整名称；不自动改写输入。" if sug else
+                                       "未找到名称候选；不代表该派系不存在。")))
+                    cb["values"] = sug
                     if sug:
-                        cb["values"] = sug
                         try:
                             focused = cb.focus_get() == cb
                         except tk.TclError:
@@ -294,9 +343,46 @@ def attach_system_suggest(cb, textvar):
         except tk.TclError:
             pass
 
+    def changed(*args):
+        if state["selecting"] or textvar.get() == state["last_text"]:
+            return
+        state["last_text"] = textvar.get()
+        state["seq"] += 1
+        state["hits"] = []
+        cancel_timer()
+        if cb.focus_get() == cb:
+            schedule()
+        else:
+            cb["values"] = []
+            pop.hide(cb)
+
+    trace = textvar.trace_add("write", changed)
     cb.bind("<KeyRelease>", on_key)
-    cb.bind("<<ComboboxSelected>>", lambda e: pop.hide(cb))
-    cb.bind("<FocusOut>", lambda e: pop.hide(cb))
+    cb.bind("<<ComboboxSelected>>", lambda e: pick(textvar.get()))
+    def blur(event):
+        def check():
+            state["blur_timer"] = None
+            if not cb.winfo_exists():
+                return
+            focus = cb.focus_get()
+            if focus != cb and focus != pop.lb:
+                pop.hide(cb)
+        if state.get("blur_timer"):
+            cb.after_cancel(state["blur_timer"])
+        state["blur_timer"] = cb.after(100, check)
+    cb.bind("<FocusOut>", blur)
+
+    def destroyed(event):
+        if event.widget is cb:
+            state["seq"] += 1
+            cancel_timer()
+            if state.get("blur_timer"):
+                cb.after_cancel(state["blur_timer"])
+            textvar.trace_remove("write", trace)
+            pop.hide(cb)
+    cb.bind("<Destroy>", destroyed, add="+")
+    cb.configure(postcommand=schedule)
+    return state
 
 
 class Row:
@@ -792,8 +878,9 @@ class App:
     def __init__(self, root):
         self._post = ui_dispatcher(root)
         self.root = root
-        root.title("Elite 星系/空间站全条件筛选器")
-        root.geometry("1120x720")
+        self.localizer = Localizer(root)
+        self.localizer.register(lambda: root.title(self.localizer.tr("Elite 星系/空间站全条件筛选器")))
+        root.geometry("1320x780")
         self.rows = []
         self.results = []
         self._tool_states = {}
@@ -815,6 +902,8 @@ class App:
         ttk.Label(top, text="最多翻页").pack(side="left", padx=(8, 0))
         self.maxpages = tk.StringVar(value="25")
         ttk.Entry(top, textvariable=self.maxpages, width=4).pack(side="left")
+        top = ttk.Frame(root, padding=(6, 2))
+        top.pack(fill="x")
         ttk.Button(top, text="+ 普通条件", command=self.add_field).pack(side="left", padx=4)
         ttk.Button(top, text="+ 距离条件", command=self.add_distance).pack(side="left")
         ttk.Button(top, text="清空条件", command=self.clear).pack(side="left", padx=4)
@@ -834,6 +923,14 @@ class App:
         ttk.Button(extra, text="两系中点", command=self.midpoint_window).pack(side="left")
         ttk.Button(extra, text="航母车位", command=self.carrier_parking_window).pack(side="left", padx=4)
         ttk.Button(extra, text="稀有商品目标查找器", command=self.rare_goods_window).pack(side="left", padx=4)
+        ttk.Button(extra, text="海盗任务查找器", command=self.pve_window).pack(side="left", padx=4)
+        self.language = tk.StringVar(value="中文")
+        language_box = ttk.Combobox(extra, textvariable=self.language,
+                                   values=["中文", "English"], state="readonly", width=10)
+        language_box.pack(side="right", padx=4)
+        ttk.Label(extra, text="语言 / Language").pack(side="right")
+        language_box.bind("<<ComboboxSelected>>", lambda e: self.set_language(
+            "en" if self.language.get() == "English" else "zh"))
 
         self.hint_var = tk.StringVar(
             value="第三格可下拉/打字联想/点“选值…”多选 (选项≤30个直接下拉)。船/模块名打字联想+自动纠错，行内自带新鲜度选择。")
@@ -958,6 +1055,8 @@ class App:
         self.rows.append(r)
 
     def _apply_state(self, d):
+        if hasattr(self, "localizer"):
+            self.set_language(d.get("language", self.localizer.language))
         self.clear()
         if d.get("kind") in ("stations", "systems"):
             self.kind.set(d["kind"])
@@ -1003,7 +1102,14 @@ class App:
         return {"kind": self.kind.get(), "conditions": conds,
                 "want": self.want.get(), "maxpages": self.maxpages.get(),
                 "rows": [r.editor_state() for r in self.rows if r.frame.winfo_exists()],
-                "tools": dict(self._tool_states)}
+                "tools": dict(self._tool_states),
+                "language": self.localizer.language if hasattr(self, "localizer") else "zh"}
+
+    def set_language(self, language):
+        if language not in ("zh", "en"):
+            language = "zh"
+        self.language.set("English" if language == "en" else "中文")
+        self.localizer.set_language(language)
 
     def bind_tool_state(self, key, window, variables):
         """统一保存辅助窗口；关子窗口和关主窗口都能保存当前参数。"""
@@ -1359,8 +1465,12 @@ class App:
         from powerplay_gui import open_window
         open_window(self, data_age)
 
+    def pve_window(self):
+        from pve_gui import open_window
+        return open_window(self)
+
     def carrier_parking_window(self):
-        win = tk.Toplevel(self.root)
+        win = Toplevel(self.root)
         win.title("航母车位查找")
         win.geometry("1060x580")
         controls = ttk.Frame(win, padding=8)
@@ -1420,7 +1530,7 @@ class App:
             if path:
                 with open(path, "w", newline="", encoding="utf-8-sig") as f:
                     writer = csv.writer(f)
-                    writer.writerow([title for _, _, title in columns])
+                    writer.writerow([self.localizer.tr(title) for _, _, title in columns])
                     writer.writerows(tree.item(i, "values") for i in tree.get_children())
 
         def run():
@@ -1481,7 +1591,7 @@ class App:
 
     def midpoint_window(self):
         """两系中点工具: 输入 A、B, 找离中点最近的星系。"""
-        win = tk.Toplevel(self.root)
+        win = Toplevel(self.root)
         win.title("两系中点 - 离中点最近的星系")
         win.geometry("780x560")
         frm = ttk.Frame(win, padding=8)

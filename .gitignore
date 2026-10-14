@@ -13,6 +13,7 @@ env/
 # Personal session and runtime caches
 /last_session.json
 /field_values_cache.json
+/pve_cache_*.json
 /module_specs_cache.json
 /.session-*.tmp
 
