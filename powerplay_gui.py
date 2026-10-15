@@ -1,5 +1,6 @@
 """稀有商品目标查找器；后台仅使用普通Python数据，Tk更新交给App调度器。"""
 import csv
+from result_format import format_ls
 import threading
 import tkinter as tk
 from tkinter import filedialog
@@ -68,6 +69,10 @@ def open_window(app, data_age):
     ttk.Label(win, textvariable=status, wraplength=1160).pack(fill="x", padx=8)
     progressbar = ttk.Progressbar(win, mode="indeterminate")
     progressbar.pack(fill="x", padx=8, pady=4)
+    from search_progress import SearchProgress
+    progress_text = tk.StringVar(win)
+    ttk.Label(win, textvariable=progress_text).pack(fill='x', padx=8)
+    tracker = SearchProgress(progressbar, progress_text, app.localizer)
 
     summary = ttk.Treeview(win, columns=("power", "stations", "systems", "limit", "status"),
                            show="headings", height=6, selectmode="browse")
@@ -81,7 +86,7 @@ def open_window(app, data_age):
     frame.pack(fill="both", expand=True, padx=8, pady=4)
     columns = (("power", 170, "关联势力"), ("system", 150, "星系"),
                ("station", 180, "空间站"), ("ly", 70, "距离 ly"),
-               ("ls", 90, "到站距离 Ls"), ("range", 110, "范围"), ("age", 100, "站点记录年龄"))
+               ("ls", 90, "到站距离 Ls"), ("age", 100, "站点记录年龄"))
     tree = ttk.Treeview(frame, columns=[c for c, _, _ in columns], show="headings")
     for key, width, title in columns:
         tree.heading(key, text=title)
@@ -98,9 +103,9 @@ def open_window(app, data_age):
     stop = threading.Event()
 
     def values(p, row):
+        from result_format import format_ly
         return (tool.POWER_LABELS[p], row.get("system_name", ""), row.get("name", ""),
-                row.get("_powerplay_distance", ""), row.get("distance_to_arrival", ""),
-                "标准 ≤100 Ls" if row["_powerplay_limit"] == 100 else "放宽 ≤1000 Ls",
+                format_ly(row.get("_powerplay_distance")), format_ls(row.get("distance_to_arrival")),
                 data_age(row.get("updated_at")))
 
     def show_details(p=None):
@@ -171,32 +176,34 @@ def open_window(app, data_age):
         button.configure(state="disabled")
         cb_ref.configure(state="disabled")
         entry_filter.configure(state="disabled")
-        progressbar.start(80)
+        tracker.update()
         status.set("查询中...")
 
         def work():
             try:
                 info, groups = tool.search_powerplay(
                     name, chosen, scan_all, lo, hi, limit, stop=stop,
-                    progress=lambda msg, detail=None: app._post(win, status.set, msg))
+                    progress=lambda msg, detail=None: app._post(win, lambda: (status.set(msg), tracker.update(msg, detail))))
 
                 def show():
                     state.update(groups=groups, info=info)
                     for p, group in groups.items():
                         summary.insert("", "end", iid=p, values=(tool.POWER_LABELS[p],
-                            group["station_count"], group["system_count"], group["arrival_limit"], group["status"]))
+                            f"{group['station_count']:,}", f"{group['system_count']:,}", format_ls(group['arrival_limit']), group["status"]))
                     show_details()
                     count = sum(g["station_count"] for g in groups.values())
                     shown = sum(len(g["rows"]) for g in groups.values())
                     text = "检索完成" if info["complete"] else "检索未完成（当前仅部分结果，不代表无命中）"
-                    status.set(f"参考 {info['reference']}，{lo:g}–{hi:g} ly：{text}；{len(groups)} 个势力，命中 {count} 条、显示 {shown} 条（每势力最多5条，ly优先、Ls其次）；扫描候选 {info['scanned']} 条。")
+                    status.set(f"参考 {info['reference']}，{lo:,.2f}–{hi:,.2f} ly：{text}；{len(groups):,} 个势力，命中 {count:,} 条、显示 {shown:,} 条（每势力最多5条，ly优先、Ls其次）；扫描候选 {info['scanned']:,} 条。")
                     finish()
+                    tracker.finish(info['complete'])
 
                 app._post(win, show)
             except Exception as exc:
                 def failed(error=str(exc)):
                     status.set("查询失败；不能解释为无结果")
                     finish()
+                    tracker.finish(False)
                     messagebox.showerror("查询失败", error, parent=win)
                 app._post(win, failed)
 

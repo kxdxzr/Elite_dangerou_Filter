@@ -1,5 +1,6 @@
 """Colonisation candidates, with existential body/ring groups and strict eligibility."""
 import math
+from itertools import count
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
@@ -117,7 +118,7 @@ class Criteria:
     ring_mode: str = 'AND'
     body_groups: list = field(default_factory=list)
     ring_groups: list = field(default_factory=list)
-    max_pages: int = 5
+    max_pages: object = None  # Legacy saved/API setting; colonisation now pages automatically.
     want: int = 100
 
     def validate(self):
@@ -133,10 +134,10 @@ class Criteria:
             raise ValueError('Invalid system value field.')
         if self.body_mode not in ('AND', 'OR') or self.ring_mode not in ('AND', 'OR'):
             raise ValueError('Group combination must be AND or OR.')
-        for key in ('max_pages', 'want'):
+        for key in ('want',):
             value = getattr(self, key)
             if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-                raise ValueError('Page and result limits must be positive integers.')
+                raise ValueError('Result limit must be a positive integer.')
         for groups, fields in ((self.body_groups, BODY_FIELDS), (self.ring_groups, RING_FIELDS)):
             for group in groups:
                 if not isinstance(group, list) or not group:
@@ -246,6 +247,32 @@ def match_groups(bodies, groups, mode, rings=False):
     return combine(outcomes, mode), '; '.join(matches)
 
 
+def top_scan_planets(records, expected_count=None):
+    """Rank recorded planets only; missing prices never become zero or mapping values."""
+    if not isinstance(records, list):
+        return [], False
+    complete = expected_count is None or len(records) == expected_count
+    ranked, seen = [], set()
+    for body in records:
+        if not isinstance(body, dict) or not body.get('type'):
+            complete = False
+            continue
+        if body['type'] != 'Planet':
+            continue
+        value = number(body.get('estimated_scan_value'))
+        if not body.get('name') or value is None or value < 0:
+            complete = False
+            continue
+        ident = str(body.get('id64', body['name'].casefold()))
+        if ident in seen:
+            continue
+        seen.add(ident)
+        ranked.append(dict(name=body['name'], subtype=body.get('subtype') or 'Unknown',
+                           estimated_scan_value=value))
+    ranked.sort(key=lambda b: (-b['estimated_scan_value'], b['name'].casefold()))
+    return ranked[:3], complete
+
+
 def eligible(system):
     population, stations, permit = system.get('population'), system.get('stations'), system.get('needs_permit')
     if eng.is_excluded_system('systems', system):
@@ -333,7 +360,39 @@ def load_bodies(names, refresh=False, stop=None):
     return pve_cache.cached(key, load, 300, refresh)[0]
 
 
-def populated_neighbour(system, radius, max_pages, stop=None, population_min=1):
+def largest_fixed_pad(system):
+    """Maximum confirmed pad at fixed stations; carriers/construction ships do not count."""
+    from powerplay_tool import _is_colonisation_ship
+    stations = system.get('stations')
+    if not isinstance(stations, list):
+        return '情况未知'
+    best, uncertain = '', False
+    for station in stations:
+        if not isinstance(station, dict) or not isinstance(station.get('type'), str) or not station['type'].strip():
+            uncertain = True
+            continue
+        if 'carrier' in station['type'].casefold() or _is_colonisation_ship(station):
+            continue
+        station_pad = ''
+        for size, key in (('L', 'large_pads'), ('M', 'medium_pads'), ('S', 'small_pads')):
+            value = number(station.get(key))
+            present = value > 0 if value is not None and value >= 0 else None
+            if size == 'L' and type(station.get('has_large_pad')) is bool:
+                present = station['has_large_pad'] or present is True
+            if present is True:
+                station_pad = size
+                break
+            if present is None:
+                uncertain = True
+                break
+        if station_pad and (not best or 'SML'.index(station_pad) > 'SML'.index(best)):
+            best = station_pad
+    if best == 'L':
+        return best
+    return '情况未知' if uncertain else best or '无固定停机坪'
+
+
+def populated_neighbour(system, radius, max_pages, stop=None, population_min=1, evidence=None):
     """Find the nearest system above the population threshold, not an annulus.
 
     The server sorts from the candidate's coordinates. Verify that order using
@@ -344,7 +403,7 @@ def populated_neighbour(system, radius, max_pages, stop=None, population_min=1):
     if None in coords:
         return None, '', None, None
     seen, uncertain, previous_distance = set(), False, None
-    for page in range(max_pages):
+    for page in count() if max_pages is None else range(max_pages):
         check_stop(stop)
         filters = eng.build_server_payload('systems', [
             {'field': 'population', 'op': 'between', 'min': math.floor(population_min) + 1, 'max': eng.BIG}])['filters']
@@ -383,6 +442,9 @@ def populated_neighbour(system, radius, max_pages, stop=None, population_min=1):
             if uncertain:
                 return None, '', None, None
             distance, name, population = min(hits)
+            if evidence is not None:
+                nearest = next(row for row in rows if row.get('name') == name)
+                evidence['pad'] = largest_fixed_pad(nearest)
             return True, name, population, distance
         if len(rows) < 50:
             return (None if uncertain else False), '', None, None
@@ -409,13 +471,14 @@ def search(criteria, progress=None, stop=None, refresh=False):
         canonical, reference_coords, _ = eng.resolve_ref(c.reference)
         payload['reference_system'] = canonical
     rows, seen, scanned, unknown = [], set(), 0, 0
-    complete, reason = False, 'Page limit reached; results are incomplete.'
+    complete, reason = False, 'Search incomplete.'
     total = 0
     try:
-        for page in range(c.max_pages):
+        for page in count():
             check_stop(stop)
             if progress:
-                progress(f'Page {page + 1}/{c.max_pages}; scanned {scanned}; matches {len(rows)}')
+                eng._report(progress, f'Page {page + 1}; scanned {scanned}; matches {len(rows)}',
+                            scanned=scanned, total=total)
             data = eng._http_json(eng.SPansh_BASE + '/systems/search', dict(payload, page=page), compressed=True)
             candidates = data.get('results') if isinstance(data, dict) else None
             if not isinstance(candidates, list):
@@ -427,7 +490,11 @@ def search(criteria, progress=None, stop=None, refresh=False):
                                 and 'stations' not in s and not eng.is_excluded_system('systems', s)]
             confirmed = {}
             for start in range(0, len(missing_stations), 16):
+                eng._report(progress, 'Verifying station records', stage='站点复核',
+                            done=start, work_total=len(missing_stations))
                 confirmed.update(confirm_station_absence(missing_stations[start:start + 16], refresh, stop))
+                eng._report(progress, 'Verifying station records', stage='站点复核',
+                            done=min(start + 16, len(missing_stations)), work_total=len(missing_stations))
             accepted, added = [], 0
             for system in candidates:
                 if not isinstance(system, dict) or not system.get('name'):
@@ -466,14 +533,17 @@ def search(criteria, progress=None, stop=None, refresh=False):
             if c.body_groups or c.ring_groups:
                 chunks = [[r['name'] for r in accepted[i:i + 8]] for i in range(0, len(accepted), 8)]
                 with ThreadPoolExecutor(max_workers=4) as pool:
+                    eng._report(progress, 'Loading body records', stage='天体批次', done=0, work_total=len(chunks))
                     for start in range(0, len(chunks), 4):
                         check_stop(stop)
                         futures = [pool.submit(load_bodies, chunk, refresh, stop) for chunk in chunks[start:start + 4]]
-                        for future in futures:
+                        for index, future in enumerate(futures, start + 1):
                             bodies.update(future.result())
-                        if progress:
-                            progress(f'Body batches {min(start + 4, len(chunks))}/{len(chunks)}; matches {len(rows)}')
-            for system in accepted:
+                            eng._report(progress, f'Body batches {index}/{len(chunks)}; matches {len(rows)}',
+                                        stage='天体批次', done=index, work_total=len(chunks))
+            for index, system in enumerate(accepted):
+                eng._report(progress, f'Checking candidate {index + 1}/{len(accepted)}',
+                            stage='本页候选核查', done=index, work_total=len(accepted))
                 check_stop(stop)
                 records = bodies.get(system['name'].casefold(), [])
                 annotate_relationships(records)
@@ -485,17 +555,26 @@ def search(criteria, progress=None, stop=None, refresh=False):
                 if hit is not True:
                     continue
                 neighbour, population, distance = '', None, None
+                neighbour_evidence = {}
                 if c.populated_radius is not None or c.populated_min_distance is not None:
-                    hit, neighbour, population, distance = populated_neighbour(system, c.populated_radius, c.max_pages, stop)
+                    hit, neighbour, population, distance = populated_neighbour(
+                        system, c.populated_radius, None, stop, evidence=neighbour_evidence)
                     if hit is None:
                         unknown += 1
                     if hit is not True:
                         continue
                     if c.populated_min_distance is not None and distance < c.populated_min_distance:
                         continue
-                row = dict(system, _body_matches=body_names, _ring_matches=ring_names,
+                # System summaries already contain per-body scan values: no extra network
+                # requests just to display prices. Reuse full records if fetched for groups.
+                prices, prices_complete = top_scan_planets(
+                    bodies.get(system['name'].casefold(), system.get('bodies')),
+                    system.get('body_count'))
+                row = dict(system, _top_scan_planets=prices, _top_scan_complete=prices_complete,
+                           _body_matches=body_names, _ring_matches=ring_names,
                            _relations='; '.join(f"{b['name']}: {b['_relations']}" for b in records if b.get('_relations')),
-                           _neighbour=neighbour, _neighbour_population=population,
+                            _neighbour=neighbour, _neighbour_population=population,
+                            _neighbour_pad=neighbour_evidence.get('pad', '情况未知') if neighbour else '',
                            _neighbour_distance=distance)
                 rows.append(row)
                 if len(rows) >= c.want:
@@ -503,6 +582,8 @@ def search(criteria, progress=None, stop=None, refresh=False):
                     break
             if len(rows) >= c.want:
                 break
+            eng._report(progress, f'Page {page + 1}; scanned {scanned}; matches {len(rows)}',
+                        scanned=scanned, total=total)
             if candidates and not added:
                 reason = 'Repeated system page; results are incomplete.'
                 break

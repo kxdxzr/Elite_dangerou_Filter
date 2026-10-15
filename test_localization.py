@@ -146,6 +146,8 @@ class LocalizedGuiTests(unittest.TestCase):
                     if re.search(r'[\u3400-\u9fff]', text):
                         unexpected.append(text)
             for child in widget.winfo_children():
+                if isinstance(child, gui.ttk.Treeview) and 'ls' in child['columns']:
+                    self.assertEqual(tuple(child['columns']), ('power', 'system', 'station', 'ly', 'ls', 'age'))
                 scan(child)
         scan(self.root)
         self.assertEqual(unexpected, [])
@@ -219,7 +221,7 @@ class LocalizedGuiTests(unittest.TestCase):
             with output.open(encoding='utf-8-sig', newline='') as file:
                 rows = list(csv.reader(file))
             self.assertEqual(rows[0][0], 'Mission source')
-            self.assertEqual(rows[1][:4], ['Alpha', 'Target', '20.0', 'RES Low'])
+            self.assertEqual(rows[1][:4], ['Alpha', 'Target', '20.00', 'RES Low'])
         self.app.set_language('zh')
 
     def test_pve_refresh_and_chunked_render_real_ui(self):

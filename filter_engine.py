@@ -1211,7 +1211,8 @@ def cond_desc(c):
         return '天体／最近有人条件'
     if c.get("type") == "distance":
         mode = "内" if c.get("mode", "inside") == "inside" else "外"
-        return f"距{c.get('ref_system')}{c.get('min_ly') or 0}~{c.get('max_ly') or '∞'}ly范围{mode}"
+        from result_format import format_ly
+        return f"距{c.get('ref_system')}{format_ly(c.get('min_ly') if c.get('min_ly') is not None else 0)}~{format_ly(c.get('max_ly'), '∞')}ly范围{mode}"
     op = c.get("op")
     spec = module_spec_suffix(c) + fresh_suffix(c)
     if op in ("in", "not in"):
@@ -1333,6 +1334,7 @@ def midpoint_search(name_a, name_b, want=20, populated_only=False,
     返回 (info, rows): info={a, b, mid, ab}。"""
     if corrections is None:
         corrections = []
+    _report(progress, '解析参考星系', phase='resolve')
     canon_a, ca, fa = resolve_ref((name_a or "").strip())
     canon_b, cb, fb = resolve_ref((name_b or "").strip())
     if fa:
@@ -1342,6 +1344,7 @@ def midpoint_search(name_a, name_b, want=20, populated_only=False,
     mid = ((ca[0] + cb[0]) / 2.0, (ca[1] + cb[1]) / 2.0, (ca[2] + cb[2]) / 2.0)
     ab = dist3(ca, cb)
     rows, total, page = [], 0, 0
+    exhausted = False
     while len(rows) < want and page < max_pages:
         p = {"filters": {}, "size": 100, "page": page,
              "sort": [{"distance": {"direction": "asc"}}],
@@ -1351,6 +1354,7 @@ def midpoint_search(name_a, name_b, want=20, populated_only=False,
             total = d.get("count", 0)
         rs = d.get("results", [])
         if not rs:
+            exhausted = True
             break
         for r in rs:
             if is_excluded_system("systems", r):
@@ -1370,11 +1374,13 @@ def midpoint_search(name_a, name_b, want=20, populated_only=False,
             if len(rows) >= want:
                 break
         _report(progress, f"已找 {len(rows)}/{want}...",
-                phase="page", scanned=len(rows), hits=len(rows), total=total,
+                phase="page", done=len(rows), work_total=want, stage='目标结果',
+                scanned=len(rows), hits=len(rows), total=total,
                 page=page + 1, pages=max_pages, want=want)
         if len(rs) < 100:
+            exhausted = True
             break
         page += 1
     info = {"a": canon_a, "b": canon_b, "mid": tuple(round(v, 2) for v in mid),
-            "ab": round(ab, 2)}
+            "ab": round(ab, 2), "complete": exhausted or len(rows) >= want}
     return info, rows

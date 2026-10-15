@@ -149,15 +149,16 @@ def prepare(rows, conditions, *, stop=None, max_pages=25, progress=None):
 
 
 def summary(row):
+    from result_format import format_ly, format_population
     details = row.get('_system_details', {})
-    parts = [f'{key}={value}' for key, value in details.get('counts', {}).items()]
+    parts = [f"{key}={format_population(value, '?')}" for key, value in details.get('counts', {}).items()]
     for group in details.get('groups', []):
         for field in ('planets', 'rings'):
             if group[field]:
                 parts.append(f"{field}[{group['condition']}]: {group[field]}")
     for neighbour in details.get('neighbours', []):
-        parts.append(f"nearest(pop>{neighbour['population_min']:g}): {neighbour['name']} "
-                     f"/ pop {neighbour['population']:g} / {neighbour['distance']:.3f} ly")
+        parts.append(f"nearest(pop>{format_population(neighbour['population_min'], '?')}): {neighbour['name']} "
+                      f"/ pop {format_population(neighbour['population'], '?')} / {format_ly(neighbour['distance'], '?')} ly")
     if details.get('relationships'):
         parts.append(details['relationships'])
     return ' | '.join(parts)

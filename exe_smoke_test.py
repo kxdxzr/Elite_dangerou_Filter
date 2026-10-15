@@ -40,6 +40,13 @@ def run(gui, report_path):
         pve = app.pve_window()
         assert pve.title() == "海盗任务查找器"
         colony = app.colonisation_window()
+        assert 'population' not in colony.result_tree['columns']
+        assert all(key in colony.result_tree['columns'] for key in ('scan1', 'scan2', 'scan3', 'neighbour_pad'))
+        assert 'max_pages' not in colony.session_variables
+        from result_format import format_ls, format_ly, format_population
+        assert format_ls(1279.406775) == '1,279.41'
+        assert format_ly(1234.567) == '1,234.57'
+        assert format_population(1234567.0) == '1,234,567'
         colony.group_editors['body_groups'].add_group([
             {'field': '_is_binary', 'op': '=', 'value': 'true'}])
         assert colony.criteria().body_groups[0][0]['field'] == '_is_binary'

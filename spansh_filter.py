@@ -338,16 +338,17 @@ def main():
     if args.output == "json":
         print(json.dumps(results, ensure_ascii=False, indent=1))
         return
+    from result_format import format_ly, format_ls, format_population
     for i, r in enumerate(results):
         if args.kind == "stations":
             print(f"[{i+1}] {r.get('name')} @ {r.get('system_name')} | {r.get('type')} | "
-                  f"主经济={r.get('primary_economy')} | 到达={r.get('distance_to_arrival')}ls | "
-                  f"距参考={r.get('distance', '?'):.1f}ly | 大垫={r.get('has_large_pad')} | "
+                  f"主经济={r.get('primary_economy')} | 到达={format_ls(r.get('distance_to_arrival'), '?')}ls | "
+                  f"距参考={format_ly(r.get('distance'), '?')}ly | 大垫={r.get('has_large_pad')} | "
                   f"市场/船厂/改装={r.get('has_market')}/{r.get('has_shipyard')}/{r.get('has_outfitting')}")
         else:
-            print(f"[{i+1}] {r.get('name')} | 人口={r.get('population')} | "
+            print(f"[{i+1}] {r.get('name')} | 人口={format_population(r.get('population'), '?')} | "
                   f"经济={r.get('primary_economy')} | 阵营={r.get('allegiance')} | "
-                  f"距参考={r.get('distance', '?') if isinstance(r.get('distance'), (int, float)) else '?'}ly")
+                  f"距参考={format_ly(r.get('distance'), '?')}ly")
 
 
 if __name__ == "__main__":

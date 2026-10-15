@@ -1,5 +1,6 @@
 """PvE search GUI; all Tk work stays on the main thread."""
 import csv
+from result_format import format_ly, format_ls, format_number
 import threading
 import tkinter as tk
 import webbrowser
@@ -67,6 +68,10 @@ def open_window(app):
     ttk.Label(win, textvariable=status, wraplength=1360).pack(fill='x', padx=8, pady=4)
     progress = ttk.Progressbar(win, mode='indeterminate')
     progress.pack(fill='x', padx=8)
+    from search_progress import SearchProgress
+    progress_text = tk.StringVar(win)
+    ttk.Label(win, textvariable=progress_text).pack(fill='x', padx=8)
+    tracker = SearchProgress(progress, progress_text, app.localizer)
     columns = [('source', '任务来源'), ('target', '目标星系'), ('distance', '距离 ly'), ('site', '战斗地点'),
                ('factions', '任务派系数'), ('federation', '联邦派系数'), ('empire', '帝国派系数'),
                ('source_controller', '来源控制派系'), ('target_controller', '目标控制派系'),
@@ -89,6 +94,16 @@ def open_window(app):
     frame.rowconfigure(0, weight=1)
     frame.columnconfigure(0, weight=1)
     state = {'page': None, 'rows': [], 'info': None}
+
+    def result_value(row, key):
+        value = row.get(key, '')
+        if key == 'distance':
+            return format_ly(value)
+        if key in ('source_station_ls', 'target_ring_ls'):
+            return format_ls(value, value if isinstance(value, str) else '')
+        if key in ('factions', 'federation', 'empire'):
+            return format_number(value, value)
+        return value
     stop = threading.Event()
 
     def criteria():
@@ -110,7 +125,7 @@ def open_window(app):
             import_button.configure(state='disabled')
             online_button.configure(state='disabled')
             refresh_button.configure(state='disabled')
-            progress.start(80)
+            tracker.update('正在导入网页...')
             status.set('正在导入网页...')
             def work():
                 try:
@@ -123,10 +138,12 @@ def open_window(app):
                         state['page'] = parsed
                         status.set('已导入网页；点击开始查询应用条件。')
                         finish()
+                        tracker.finish(True)
                     app._post(win, show)
                 except (OSError, ValueError) as exc:
                     def failed(error=str(exc)):
                         status.set('导入失败；保留之前导入的数据。')
+                        tracker.finish(False)
                         finish()
                         messagebox.showerror('数据错误', error, parent=win)
                     app._post(win, failed)
@@ -164,7 +181,7 @@ def open_window(app):
         import_button.configure(state='disabled')
         online_button.configure(state='disabled')
         refresh_button.configure(state='disabled')
-        progress.start(80)
+        tracker.update()
         state.update(rows=[], info=None)
         tree.delete(*tree.get_children())
         status.set('查询中...')
@@ -172,13 +189,13 @@ def open_window(app):
         def work():
             try:
                 info, rows = tool.search(query, page=snapshot, stop=stop, refresh=refresh,
-                    progress=lambda text: app._post(win, status.set, text))
+                    progress=lambda text: app._post(win, lambda: (status.set(text), tracker.update(text))))
 
                 def show():
                     state.update(rows=rows, info=info)
                     faction_options.remember(row.get(key, '') for row in rows
                                              for key in ('source_controller', 'target_controller'))
-                    summary = (f"参考 {info.get('reference', query.reference)}，半径 {query.radius:g} ly；{info['mode']}：命中 {len(rows)} 条；已复核 {info['scanned']} 条。"
+                    summary = (f"参考 {info.get('reference', query.reference)}，半径 {query.radius:,.2f} ly；{info['mode']}：命中 {len(rows):,} 条；已复核 {info['scanned']:,} 条。"
                                + ('已完成当前数据集检索。' if info['complete'] else '检索未完成；不能确认不存在 RES 命中。')
                                + (f" 数据错误 {len(info['errors'])} 条，详见检索说明。" if info['errors'] else '')
                                + f" 明确 RES：{info.get('confirmed_res', 0)}；星环推定：{info.get('inferred_res', 0)}；情况未知：{info.get('diagnostics', {}).get('unknown_sites', 0)}；用时 {info.get('timings', {}).get('total', 0):.2f} s。")
@@ -188,13 +205,14 @@ def open_window(app):
                         summary += f"；缓存命中 {sum(bool(item.get('hit')) for item in info['dataset_cache'])}/{len(info['dataset_cache'])}。"
                     def render(start=0):
                         for row in rows[start:start + 200]:
-                            tree.insert('', 'end', values=[row.get(key, '') for key, _ in columns])
+                            tree.insert('', 'end', values=[result_value(row, key) for key, _ in columns])
                         if start + 200 < len(rows):
                             status.set(f'显示结果：{start + 200}/{len(rows)}')
                             app.root.after(1, lambda: app._post(win, render, start + 200))
                         else:
                             status.set(summary)
                             finish()
+                            tracker.finish(info['complete'])
                     render()
                 app._post(win, show)
             except Exception as exc:
@@ -213,6 +231,7 @@ def open_window(app):
                             webbrowser.open(tool.page_url(query) if url in (tool.PAIRS_URL, tool.SITES_URL) else url)
                     else:
                         messagebox.showerror('查询失败', error, parent=win)
+                    tracker.finish(False)
                 app._post(win, failed)
         threading.Thread(target=work, daemon=True).start()
 
@@ -225,7 +244,7 @@ def open_window(app):
             with open(path, 'w', encoding='utf-8-sig', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow([app.localizer.tr(label) for _, label in columns])
-                writer.writerows([app.localizer.tr(row.get(key, '')) if key in ('site', 'source_station_pad', 'source_station_ls', 'target_ring_ls') else row.get(key, '')
+                writer.writerows([app.localizer.tr(result_value(row, key))
                                   for key, _ in columns] for row in state['rows'])
 
     def copy_target(event=None):

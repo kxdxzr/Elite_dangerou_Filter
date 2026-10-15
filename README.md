@@ -41,6 +41,55 @@ Select **中文 / English** on the main window to switch all tool windows immedi
 - **Pirate massacre candidates (testing):** EDTools source/target pairs and site records, with Spansh faction, issuer-count, controlling Power, source-station and target-ring filters.
 - **Utilities:** system midpoint, cancellation, diagnostics, CSV export, condition files and session restoration for the main window and all five tools.
 
+## New in v0.1.2
+
+### Colonisation candidate finder
+
+Open **Extra tools → Colonisation candidate finder**. This is included in the Windows EXE, not a source-only preview.
+
+| Setting | How to use it |
+| --- | --- |
+| Regional reference / radius | Optionally limit candidates to a region around a reference system |
+| Nearest-populated minimum / maximum ly | Independently limit distance to the nearest system with population **>1**; either bound may be blank |
+| System value | Optionally require a value strictly greater than the threshold; select mapping, scan or landmark value |
+| Planet groups | Add conditions for subtype, landability, terraforming, materials, signals, orbital properties and more |
+| Independent ring groups | Require rings separately from the planets matched by planet groups |
+| Group mode | AND requires every group to have a match; OR requires any group. Conditions within a group must match the same planet/ring |
+
+For example, use reference **Sol**, regional radius **80 ly**, and nearest-populated bounds **4–6 ly**. Both distance filters apply together. The closest qualifying system must itself be 4–6 ly away; a more distant neighbour cannot compensate for a closer one below 4 ly. This is a usage example, not a promise of current results.
+
+Results include the candidate, selected value, enabled distances, nearest qualifying populated system, matching planets/rings and inferred relationships. Copy-system, CSV export, cancellation, forced refresh and saved drafts are supported. Moon/binary relationships are inferred from recorded parent/orbit data, not independently confirmed in-game.
+
+**Updated v0.1.2 EXE:** three result columns show the highest-value recorded planets by `estimated_scan_value`, descending, with planet name, type and estimated credits. Stars are excluded; mapping values and first-discovery bonuses are not substituted. Fewer than three known planets are not padded with zero values; incomplete data is labelled and rankings apply only to known values. CSV includes these columns. Existing body summaries/full records are reused without extra price-only requests.
+
+**v0.1.2 limitation:** eligibility currently requires zero population, an explicitly permit-free record and no stations **including Fleet Carriers**. Carrier-only systems are therefore incorrectly excluded; ignoring ordinary Fleet Carriers is a pending correction, not a feature of the current EXE. These third-party checks do not guarantee a system is unclaimed or claimable. Construction-slot count filtering is not included.
+
+### Main-window system filters
+
+Switch the main search type to **systems**:
+
+- Ordinary field rows now include total stations (including carriers), carrier count, total minor factions, Federation/Empire/Alliance faction counts, and non-Anarchy potential-issuer counts (total/Federation/Empire).
+- Click **+ Planet / nearest-populated conditions** for planet groups, independent ring groups and nearest-populated distance bounds. Here the population threshold is editable; the default is **population >1**.
+- Detailed conditions combine with ordinary rows using AND, without requiring zero population, no stations or colonisation eligibility. Saved condition files, drafts, diagnostics and complete raw-data CSV exports support these filters.
+
+### Carrier parking finder update
+
+The tool keeps its name. Enter optional **Min carriers / Max carriers** to filter nearby systems using inclusive bounds; blank means unrestricted and maximum **0** selects records with a confirmed zero count. Carrier types are counted from Spansh records rather than inferred from total station counts. Unknown counts do not pass an enabled count bound. These are not live parking vacancies.
+
+See [detailed rules](README_search_logic.md) and the [v0.1.2 release notes](docs/releases/v0.1.2.md). The screenshot gallery below is still from v0.1.1 and does not illustrate these additions.
+
+**Updated v0.1.2 formatting:** ly distances across the main results and all tools use exactly two decimal places; population uses integers, and large numeric results use comma grouping (for example `1,234.50 ly`, population `1,234,567`, value `55,000 Cr`). Human-readable CSV columns and CLI text follow the same convention. Filter inputs, calculations, IDs and raw JSON remain unchanged; the main CSV's `distances_json` uses formatted strings while `raw_json` retains the original values.
+
+Arrival distances in Ls also use exactly two decimal places throughout result tables, CSV distance columns and CLI text (for example `1,279.41 Ls`). Missing distances remain unknown, not `0.00`; this formatting does not affect Ls filter comparisons.
+
+**Updated v0.1.2 pagination:** the colonisation finder no longer asks for a maximum page count. It automatically reads candidate pages until it reaches **Maximum results**, exhausts the supplied candidates or is stopped. Old saved page limits are ignored. With no regional bounds and restrictive conditions this can take a long time; cancellation and repeated-page/error detection remain available. Other tools' page controls are unchanged.
+
+**Updated v0.1.2 neighbour information:** the result column is named **Nearest populated system**, with no population-count column. A separate button copies that system's name. The table/CSV show its maximum fixed-station pad (S/M/L), excluding carriers and colonisation ships; missing pad data stays Unknown. Pad information comes from the same nearest-system record, adds no request and does not select a more distant system with a larger pad. The lookup still uses population >1 and runs when a nearest-distance bound is enabled.
+
+**Updated v0.1.2 progress:** main search and all tools show measured stage counts and percentages when a denominator is known (candidate checks, station checks, body/ring batches or requested midpoint results). Percentages describe the labelled stage, not an estimated end-to-end duration. Network preparation and capped/unknown totals remain explicitly indeterminate with known counts; page budgets are not presented as a whole-database total. Stopped, failed or incomplete searches are distinguished from completed searches.
+
+The updated rare-goods detail table and CSV omit the redundant **Range** column. The 100 Ls / 1000 Ls fallback rule is unchanged. Re-download the asset from the existing v0.1.2 release to obtain these updates; no new version is created.
+
 ## Pirate massacre finder (testing)
 
 Open **Extra tools → Pirate massacre finder**. All enabled filters are AND:
@@ -104,17 +153,17 @@ These English-interface screenshots show the v0.1.1 main window and four origina
 
 ![Rare goods target finder in English](docs/images/rare-goods-target-finder-en.png)
 
-### Pirate massacre finder — filters and results (testing)
+### Pirate massacre finder (testing)
 
-Source faction, issuer count, landing pad and station/ring distance filters, RES Low priority, and separate source/target copy buttons.
+Two views of the same query: the result overview, followed by the table scrolled right to show the matching source station and target ring distances.
+
+**Result overview**
 
 ![Pirate massacre finder filters and results in English](docs/images/pirate-massacre-finder-summary-en.png)
 
-### Pirate massacre finder — English UI and distance details (testing)
+**Station and ring distance details**
 
-The same query after switching to English. The table is scrolled right to show the matching source station, pad, station arrival distance and target ringed body/distance; columns were widened for readability.
-
-![Pirate massacre finder in English](docs/images/pirate-massacre-finder-en.png)
+![Pirate massacre finder station and ring distance details in English](docs/images/pirate-massacre-finder-en.png)
 
 ### Carrier parking finder
 

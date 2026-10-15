@@ -18,6 +18,84 @@ def system(name='Candidate', **kw):
 
 
 class ColonisationTests(unittest.TestCase):
+    def test_neighbour_pad_excludes_carriers_and_construction_ships(self):
+        self.assertEqual(tool.largest_fixed_pad(dict(stations=[
+            dict(name='FC', type='Fleet Carrier', has_large_pad=True),
+            dict(name='System Colonisation Ship', type='Mega ship', has_large_pad=True),
+            dict(name='Outpost', type='Outpost', has_large_pad=False, medium_pads=1)])), 'M')
+        self.assertEqual(tool.largest_fixed_pad(dict(stations=[
+            dict(type='Outpost', has_large_pad=False, medium_pads=0, small_pads=2)])), 'S')
+        self.assertEqual(tool.largest_fixed_pad(dict(stations=[
+            dict(type='Coriolis Starport', has_large_pad=True), {}])), 'L')
+        for row in ({}, dict(stations=[{}]), dict(stations=[dict(type='Outpost', medium_pads=1)])):
+            self.assertEqual(tool.largest_fixed_pad(row), '情况未知')
+        self.assertEqual(tool.largest_fixed_pad(dict(stations=[])), '无固定停机坪')
+
+    def test_neighbour_pad_comes_from_same_nearest_system_without_extra_request(self):
+        nearest = dict(name='Near', population=2, x=1, y=0, z=0,
+                       stations=[dict(type='Outpost', has_large_pad=False, medium_pads=1)])
+        farther = dict(name='Far', population=1000, x=2, y=0, z=0,
+                       stations=[dict(type='Coriolis Starport', has_large_pad=True)])
+        evidence = {}
+        with patch.object(tool.eng, '_http_json', return_value=dict(results=[nearest, farther])) as http:
+            hit, name, _, _ = tool.populated_neighbour(system(x=0, y=0, z=0), None, None, evidence=evidence)
+        self.assertTrue(hit)
+        self.assertEqual(name, 'Near')
+        self.assertEqual(evidence['pad'], 'M')
+        self.assertEqual(http.call_count, 1)
+
+    def test_search_pages_automatically_ignoring_legacy_limit(self):
+        first = [system(name=f'Populated {i}') for i in range(500)]
+        for row in first:
+            row['population'] = 1  # No hits in first page; still fetch next page.
+        with patch.object(tool.eng, '_http_json', side_effect=[
+                dict(count=501, results=first), dict(count=501, results=[system()])]) as http:
+            info, rows = tool.search(tool.Criteria(max_pages=1))
+        self.assertEqual(http.call_count, 2)
+        self.assertEqual([r['name'] for r in rows], ['Candidate'])
+        self.assertTrue(info['complete'])
+
+    def test_automatic_paging_stops_on_repeated_full_page(self):
+        records = [dict(system(name=f'P{i}'), population=1) for i in range(500)]
+        with patch.object(tool.eng, '_http_json', return_value=dict(count=10000, results=records)) as http:
+            info, rows = tool.search(tool.Criteria())
+        self.assertEqual(http.call_count, 2)
+        self.assertFalse(info['complete'])
+        self.assertIn('Repeated', info['reason'])
+        self.assertEqual(rows, [])
+
+    def test_top_scan_planets_ignore_stars_and_mapping_values(self):
+        records = [dict(type='Star', name='Star', estimated_scan_value=999999),
+                   planet('B', subtype='Water world', estimated_scan_value=50, estimated_mapping_value=9999),
+                   planet('A', subtype='Earth-like world', estimated_scan_value=100),
+                   planet('C', subtype='Rocky body', estimated_scan_value=50),
+                   planet('D', subtype='Icy body', estimated_scan_value=0)]
+        ranked, complete = tool.top_scan_planets(records, 5)
+        self.assertTrue(complete)
+        self.assertEqual([b['name'] for b in ranked], ['A', 'B', 'C'])
+        self.assertEqual(ranked[0]['subtype'], 'Earth-like world')
+        self.assertEqual([b['estimated_scan_value'] for b in ranked], [100, 50, 50])
+
+    def test_top_scan_missing_and_invalid_data_do_not_become_zero(self):
+        for value in (None, True, float('nan'), float('inf'), -1):
+            ranked, complete = tool.top_scan_planets([planet('A', estimated_scan_value=value)])
+            self.assertEqual(ranked, [])
+            self.assertFalse(complete)
+        self.assertEqual(tool.top_scan_planets(None), ([], False))
+        self.assertEqual(tool.top_scan_planets([], 0), ([], True))
+        self.assertEqual(tool.top_scan_planets([], 2), ([], False))
+        ranked, complete = tool.top_scan_planets([planet('A', estimated_scan_value=0), planet('B')])
+        self.assertEqual(ranked[0]['estimated_scan_value'], 0)
+        self.assertFalse(complete)
+
+    def test_search_includes_scan_ranking_without_extra_body_request(self):
+        candidate = system(bodies=[planet('A', subtype='Water world', estimated_scan_value=55)], body_count=1)
+        with patch.object(tool.eng, '_http_json', return_value=dict(count=1, results=[candidate])) as http:
+            _, rows = tool.search(tool.Criteria())
+        self.assertEqual(http.call_count, 1)
+        self.assertEqual(rows[0]['_top_scan_planets'][0]['estimated_scan_value'], 55)
+        self.assertTrue(rows[0]['_top_scan_complete'])
+
     def test_blank_and_zero_are_distinct(self):
         blank = tool.Criteria().validate()
         self.assertIsNone(blank.minimum_value)

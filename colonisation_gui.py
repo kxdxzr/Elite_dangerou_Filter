@@ -117,16 +117,16 @@ def open_window(app):
     variables = {key: tk.StringVar(win, value=value) for key, value in {
         'reference': '', 'radius': '', 'populated_min_distance': '', 'populated_radius': '', 'minimum_value': '',
         'value_field': 'estimated_mapping_value', 'body_mode': 'AND', 'ring_mode': 'AND',
-        'body_groups': '[]', 'ring_groups': '[]', 'max_pages': '5', 'want': '100'}.items()}
+        'body_groups': '[]', 'ring_groups': '[]', 'want': '100'}.items()}
     app.bind_tool_state('colonisation', win, variables)
     controls = ttk.Frame(win, padding=8)
     controls.pack(fill='x')
     sections = [
         ('区域距离（可选）', [('reference', '区域参考星系（可选）'), ('radius', '区域半径 ly（留空不限）')]),
-        ('最近人口 > 1 星系距离（可选）', [('populated_min_distance', '最近有人星系最小 ly'),
+        ('最近有人星系距离（可选）', [('populated_min_distance', '最近有人星系最小 ly'),
                                       ('populated_radius', '最近有人星系最大 ly')]),
         ('价值与查询数量', [('minimum_value', '星系价值大于（可选）'), ('value_field', '星系价值字段'),
-                        ('max_pages', '最大页数'), ('want', '最多结果')]),
+                         ('want', '最多结果')]),
     ]
     for section_index, (title, specs) in enumerate(sections):
         section = ttk.LabelFrame(controls, text=title, padding=5)
@@ -185,16 +185,25 @@ def open_window(app):
     ttk.Label(win, textvariable=status, wraplength=1360).pack(fill='x', padx=8)
     bar = ttk.Progressbar(win, mode='indeterminate')
     bar.pack(fill='x', padx=8, pady=4)
+    from search_progress import SearchProgress
+    progress_text = tk.StringVar(win)
+    ttk.Label(win, textvariable=progress_text).pack(fill='x', padx=8)
+    tracker = SearchProgress(bar, progress_text, app.localizer)
     frame = ttk.Frame(win)
     frame.pack(fill='both', expand=True, padx=8)
     columns = [('name', '候选星系'), ('value', '星系价值'), ('distance', '区域距离 ly'),
-               ('neighbour', '最近人口达标星系'), ('population', '最近星系人口'), ('near_distance', '最近星系距离 ly'),
+                ('neighbour', '最近有人星系'), ('near_distance', '最近有人星系距离 ly'),
+                ('neighbour_pad', '最近有人星系最大停机坪'),
                ('body_matches', '匹配星球（按组）'), ('ring_matches', '匹配星环（按组）'),
-               ('relations', '天体关系（推定）'), ('updated', '记录更新时间')]
+                ('relations', '天体关系（推定）'),
+                ('scan1', '扫描价值第1（星球／类型／Cr）'),
+                ('scan2', '扫描价值第2（星球／类型／Cr）'),
+                ('scan3', '扫描价值第3（星球／类型／Cr）'),
+                ('scan_status', '扫描价值数据完整性'), ('updated', '记录更新时间')]
     tree = ttk.Treeview(frame, columns=[key for key, _ in columns], show='headings')
     for key, title in columns:
         tree.heading(key, text=title)
-        tree.column(key, width=300 if key in ('body_matches', 'ring_matches', 'relations') else 165, stretch=False)
+        tree.column(key, width=300 if key in ('body_matches', 'ring_matches', 'relations', 'scan1', 'scan2', 'scan3') else 165, stretch=False)
     vertical = ttk.Scrollbar(frame, orient='vertical', command=tree.yview)
     horizontal = ttk.Scrollbar(frame, orient='horizontal', command=tree.xview)
     tree.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
@@ -218,17 +227,18 @@ def open_window(app):
                 'Search cancelled; results are incomplete.': '已停止，结果不完整。',
             }
             if en:
-                text = f"Scanned: {info['scanned']}; matches: {len(state['rows'])}; unknown: {info['unknown']}. {info['reason']}"
+                text = f"Scanned: {info['scanned']:,}; matches: {len(state['rows']):,}; unknown: {info['unknown']:,}. {info['reason']}"
             else:
-                text = f"扫描 {info['scanned']}；匹配 {len(state['rows'])}；数据未知 {info['unknown']}。" + reasons.get(info['reason'], info['reason'])
+                text = f"扫描 {info['scanned']:,}；匹配 {len(state['rows']):,}；数据未知 {info['unknown']:,}。" + reasons.get(info['reason'], info['reason'])
             status.set(text)
         elif state['busy']:
             text = state['progress']
-            page = re.fullmatch(r'Page (\d+)/(\d+); scanned (\d+); matches (\d+)', text)
+            page = re.fullmatch(r'Page (\d+); scanned (\d+); matches (\d+)', text)
             batch = re.fullmatch(r'Body batches (\d+)/(\d+); matches (\d+)', text)
-            if not en and page:
-                a, b, scanned, hits = page.groups()
-                text = f'分页 {a}/{b}；已扫描 {scanned}；匹配 {hits}'
+            if page:
+                a, scanned, hits = map(int, page.groups())
+                text = (f'Page {a:,}; scanned {scanned:,}; matches {hits:,}' if en else
+                        f'分页 {a:,}；已扫描 {scanned:,}；匹配 {hits:,}')
             elif not en and batch:
                 a, b, hits = batch.groups()
                 text = f'天体批次 {a}/{b}；匹配 {hits}'
@@ -240,15 +250,22 @@ def open_window(app):
         args = {key: value.get() for key, value in variables.items()}
         for key in ('body_groups', 'ring_groups'):
             args[key] = json.loads(args[key])
-        for key in ('max_pages', 'want'):
+        for key in ('want',):
             args[key] = int(args[key])
         return tool.Criteria(**args).validate()
 
     def values(row):
-        return (row['name'], row.get(state['info']['value_field'], '情况未知'), row.get('distance', ''),
-                row['_neighbour'], row['_neighbour_population'] if row['_neighbour_population'] is not None else '',
-                row['_neighbour_distance'] if row['_neighbour_distance'] is not None else '',
-                row['_body_matches'], row['_ring_matches'], row['_relations'], row.get('updated_at', ''))
+        from result_format import format_ly, format_number
+        prices = row.get('_top_scan_planets', [])
+        top = [f"{b['name']} | {b['subtype']} | {b['estimated_scan_value']:,.0f} Cr" for b in prices]
+        complete = row.get('_top_scan_complete', False)
+        top += [app.localizer.tr('无更多星球' if complete else '情况未知')] * (3 - len(top))
+        return (row['name'], format_number(row.get(state['info']['value_field']), app.localizer.tr('情况未知')), format_ly(row.get('distance')),
+                row['_neighbour'], format_ly(row['_neighbour_distance']),
+                app.localizer.tr(row.get('_neighbour_pad', '情况未知') if row['_neighbour'] else ''),
+                row['_body_matches'], row['_ring_matches'], row['_relations'], *top,
+                app.localizer.tr('已记录天体完整' if complete else '数据不完整，仅列已知估值'),
+                row.get('updated_at', ''))
 
     def run(refresh=False):
         if state['busy']:
@@ -267,21 +284,25 @@ def open_window(app):
         refresh_button.configure(state='disabled')
         stop_button.configure(state='normal')
         render_status()
-        bar.start(80)
+        tracker.update()
 
         def worker():
             try:
-                info, rows = tool.search(c, progress=lambda text: events.put(('progress', text)), stop=stop, refresh=refresh)
+                info, rows = tool.search(c, progress=lambda text, detail=None: events.put(('progress', (text, detail))), stop=stop, refresh=refresh)
                 events.put(('done', (info, rows)))
             except Exception as exc:
                 events.put(('error', str(exc)))
         threading.Thread(target=worker, daemon=True).start()
 
-    def copy():
+    def copy(key='name'):
         selected = tree.selection()
         if selected:
+            name = state['rows'][int(selected[0])].get(key, '')
+            if not name:
+                messagebox.showinfo('提示', '暂无最近有人星系信息', parent=win)
+                return
             win.clipboard_clear()
-            win.clipboard_append(state['rows'][int(selected[0])]['name'])
+            win.clipboard_append(name)
 
     def export():
         if not state['info']:
@@ -303,6 +324,7 @@ def open_window(app):
     stop_button = ttk.Button(actions, text='停止', command=stop.set, state='disabled')
     stop_button.pack(side='left', padx=4)
     ttk.Button(actions, text='复制星系名', command=copy).pack(side='left', padx=4)
+    ttk.Button(actions, text='复制最近有人星系', command=lambda: copy('_neighbour')).pack(side='left', padx=4)
     ttk.Button(actions, text='导出CSV', command=export).pack(side='left', padx=4)
     tree.bind('<Double-1>', lambda e: copy())
 
@@ -316,7 +338,9 @@ def open_window(app):
             while True:
                 event, data = events.get_nowait()
                 if event == 'progress':
-                    state['progress'] = data
+                    text, detail = data
+                    state['progress'] = text
+                    tracker.update(text, detail)
                     render_status()
                     continue
                 state['busy'] = False
@@ -325,11 +349,13 @@ def open_window(app):
                 stop_button.configure(state='disabled')
                 bar.stop()
                 if event == 'error':
+                    tracker.finish(False)
                     status.set(data)
                     messagebox.showerror('查询失败', data, parent=win)
                     continue
                 info, rows = data
                 state.update(info=info, rows=rows)
+                tracker.finish(info['complete'])
                 render_status()
                 for index, row in enumerate(rows):
                     tree.insert('', 'end', iid=str(index), values=values(row))

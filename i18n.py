@@ -2,6 +2,21 @@
 import re
 
 CATALOG = {
+    '最近有人星系': 'Nearest populated system',
+    '最近有人星系距离 ly': 'Nearest populated distance ly',
+    '最近有人星系最大停机坪': 'Nearest populated system max pad',
+    '复制最近有人星系': 'Copy nearest populated system',
+    '暂无最近有人星系信息': 'No nearest populated system information available',
+    '无固定停机坪': 'No fixed landing pads',
+    '目标结果': 'Requested results',
+    '候选核查': 'Candidate checks', '派系详情': 'Faction details', '天体批次': 'Body batches',
+    '星环批次': 'Ring batches', '站点复核': 'Station checks', '本页候选核查': 'Current-page checks',
+    '无更多星球': 'No more planets',
+    '扫描价值第1（星球／类型／Cr）': 'Scan value #1 (planet / type / Cr)',
+    '扫描价值第2（星球／类型／Cr）': 'Scan value #2 (planet / type / Cr)',
+    '扫描价值第3（星球／类型／Cr）': 'Scan value #3 (planet / type / Cr)',
+    '扫描价值数据完整性': 'Scan value coverage', '已记录天体完整': 'Recorded body values complete',
+    '数据不完整，仅列已知估值': 'Incomplete; known values only',
     '+ 天体／最近有人条件': '+ Planet / nearest-populated conditions',
     '天体／最近有人条件': 'Planet / nearest-populated conditions',
     '编辑详细条件…': 'Edit detailed conditions…', '主界面星系详细条件': 'Main-window system details',

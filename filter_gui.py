@@ -27,6 +27,8 @@ import field_options as fo
 import session_store
 from runtime_paths import data_file
 from system_filter_fields import COUNT_FIELDS
+from result_format import format_ly, format_ls, format_population
+from search_progress import SearchProgress
 
 SYSTEM_FIELDS = dict(SYSTEM_FIELDS, **COUNT_FIELDS)
 SYSTEM_FIELDS_CN.update(COUNT_FIELDS)
@@ -1332,7 +1334,7 @@ class App:
                     for r in rows:
                         if kind == "stations":
                             extra = ", ".join(
-                                f"{ref}:{r.get('_distances', {}).get(ref, '?')}ly"
+                                f"{ref}:{format_ly(r.get('_distances', {}).get(ref), '?')}ly"
                                 for ref in dist_refs)
                             actual_ships = eng._names(r.get("ships"), "ships")
                             actual_mods = eng._names(r.get("modules"), "modules")
@@ -1367,22 +1369,22 @@ class App:
                             self.tree.insert("", "end", values=(
                                 r.get("name"), r.get("system_name"),
                                 f"{r.get('type')} | {r.get('primary_economy')} | "
-                                f"{r.get('distance_to_arrival')}ls | "
+                                f"{format_ls(r.get('distance_to_arrival'), '?')}ls | "
                                 f"市场{r.get('has_market')}/船厂{r.get('has_shipyard')} | "
                                 f"{sell} | 船厂{data_age(r.get('shipyard_updated_at'))}/"
                                 f"改装{data_age(r.get('outfitting_updated_at'))}",
                                 extra))
                         else:
                             extra = ", ".join(
-                                f"{ref}:{r.get('_distances', {}).get(ref, '?')}ly"
+                                f"{ref}:{format_ly(r.get('_distances', {}).get(ref), '?')}ly"
                                 for ref in dist_refs)
                             from system_filters import summary
                             detail = summary(r)
                             self.tree.insert("", "end", values=(
-                                r.get("name"), f"pop {r.get('population')}",
+                                r.get("name"), f"pop {format_population(r.get('population'), '?')}",
                                 f"{r.get('allegiance')} | {r.get('primary_economy')} | "
                                 f"{r.get('security')}" + (f' | {detail}' if detail else ''), extra))
-                    msg = f"服务器候选计数 {total}, 已复核 {scanned} 条, 命中 {len(rows)} 条"
+                    msg = f"服务器候选计数 {total:,}, 已复核 {scanned:,} 条, 命中 {len(rows):,} 条"
                     if corr:
                         msg += "；" + "、".join(f"'{a}'→'{b}'" for a, b in corr) + "已自动纠正"
                     if notes:
@@ -1399,6 +1401,8 @@ class App:
                         self.prog_pct.set("已停止")
                     else:
                         self.prog_pct.set("未完成")
+                    if hasattr(self, '_search_progress'):
+                        self._search_progress.finish(any('候选分页已取完' in n or '已达到所需结果数' in n for n in notes))
                 self._post(self.root, show)
             except Exception as e:
                 self._post(self.root, lambda error=str(e): (
@@ -1407,46 +1411,17 @@ class App:
                     self.prog.stop(),
                     self.prog.configure(mode="determinate"),
                     self.prog_pct.set("失败"),
+                    self._search_progress.finish(False) if hasattr(self, '_search_progress') else None,
                     self.btn_run.__setitem__("state", "normal"),
                     self.btn_stop.__setitem__("state", "disabled")))
 
         threading.Thread(target=work, daemon=True).start()
 
     def _apply_progress(self, msg, info):
-        """工作线程经 root.after 回调: 更新状态文本 + 进度条。
-        info: {phase, scanned, hits, total, page, pages, per, want}。
-        resolve=解析参考星系, fetch=单页请求等待中, page=一页完成。"""
+        if not hasattr(self, '_search_progress'):
+            self._search_progress = SearchProgress(self.prog, self.prog_pct, self.localizer)
         self.status.set(msg)
-        if info.get("phase") in ("resolve", "fetch"):
-            if str(self.prog["mode"]) != "indeterminate":
-                self.prog["mode"] = "indeterminate"
-                self.prog.start(80)
-            if info.get("phase") == "resolve":
-                self.prog_pct.set("准备中")
-            else:
-                hits = info.get("hits", 0)
-                want = info.get("want", 0)
-                extra = f"命中 {hits}/{want}" if want else f"命中 {hits}"
-                self.prog_pct.set(f"请求中 {extra}")
-            return
-        self.prog.stop()
-        self.prog["mode"] = "determinate"
-        try:
-            scanned = max(0, int(info.get("scanned", 0) or 0))
-            total = int(info.get("total", 0) or 0)
-            pages = max(1, int(info.get("pages", 1) or 1))
-            per = max(1, int(info.get("per", 100) or 100))
-        except (TypeError, ValueError):
-            return
-        expected = pages * per
-        if total > 0:
-            expected = min(total, expected)
-        pct = min(100.0, scanned * 100.0 / expected) if expected > 0 else 0.0
-        self.prog["value"] = pct
-        hits = info.get("hits", 0)
-        want = info.get("want", 0)
-        extra = f"命中 {hits}/{want}" if want else f"命中 {hits}"
-        self.prog_pct.set(f"{pct:.0f}% {extra}")
+        self._search_progress.update(msg, info)
 
     def stop_search(self):
         if getattr(self, "_stop", None):
@@ -1542,6 +1517,11 @@ class App:
                   wraplength=1020, foreground="gray").pack(fill="x", padx=8, pady=6)
         status = tk.StringVar(value="输入参考星系后查询；双击结果复制星系名。")
         ttk.Label(win, textvariable=status, wraplength=1020).pack(fill="x", padx=8)
+        progressbar = ttk.Progressbar(win, mode='determinate')
+        progressbar.pack(fill='x', padx=8)
+        progress_text = tk.StringVar(win)
+        ttk.Label(win, textvariable=progress_text).pack(fill='x', padx=8)
+        tracker = SearchProgress(progressbar, progress_text, self.localizer)
         columns = [("name", 210, "星系"), ("distance", 90, "距离 ly"),
                    ("carriers", 80, "航母数"), ("stations", 90, "站点总数"),
                    ("parking", 250, "统计状态"), ("permit", 80, "许可"),
@@ -1593,6 +1573,7 @@ class App:
             exclude = no_permit.get()
             stop.clear()
             button["state"] = "disabled"
+            tracker.update()
             tree.delete(*tree.get_children())
             status.set("查询中...")
 
@@ -1601,26 +1582,28 @@ class App:
                     info, rows = eng.carrier_parking_search(
                         name, distance, min_carriers=low, max_carriers=high, exclude_permit=exclude,
                         max_pages=limit, stop=stop,
-                        progress=lambda msg, detail=None: self._post(win, status.set, msg))
+                        progress=lambda msg, detail=None: self._post(win, lambda: (status.set(msg), tracker.update(msg, detail))))
 
                     def show():
                         reference.set(info["reference"])
+                        tracker.finish(info['complete'])
                         for row in rows:
                             permit = row.get("needs_permit")
                             tree.insert("", "end", tags=(row["_parking_category"],), values=(
-                                row.get("name"), row["_parking_distance"],
-                                row["_carrier_count"] if row["_carrier_count"] is not None else "未知",
-                                row["_station_count"] if row["_station_count"] is not None else "未知",
+                                row.get("name"), format_ly(row["_parking_distance"]),
+                                format_population(row["_carrier_count"], "未知"),
+                                format_population(row["_station_count"], "未知"),
                                 row["_parking_label"], "需许可" if permit else ("免许可" if permit is False else "未知"),
                                 data_age(row.get("updated_at"))))
                         state = "范围内分页已取完" if info["complete"] else "检索未完成，当前为部分结果"
-                        status.set(f"{info['reference']} 周围 {info['radius']:g} ly：扫描 {info['scanned']} 个星系，显示 {len(rows)} 个；{state}。航母数量未知 {info['unknown']} 个。")
+                        status.set(f"{info['reference']} 周围 {format_ly(info['radius'])} ly：扫描 {info['scanned']:,} 个星系，显示 {len(rows):,} 个；{state}。航母数量未知 {info['unknown']:,} 个。")
                         button["state"] = "normal"
 
                     self._post(win, show)
                 except Exception as exc:
                     def failed(error=str(exc)):
                         status.set("查询失败")
+                        tracker.finish(False)
                         button["state"] = "normal"
                         messagebox.showerror("查询失败", error, parent=win)
                     self._post(win, failed)
@@ -1666,6 +1649,11 @@ class App:
         btn.grid(row=1, column=4, padx=8)
         status = tk.StringVar(value="输入两星系名后点查找 (支持联想, 打错自动纠)。")
         ttk.Label(win, textvariable=status, foreground="gray").pack(fill="x", padx=8)
+        progressbar = ttk.Progressbar(win, mode='determinate')
+        progressbar.pack(fill='x', padx=8)
+        progress_text = tk.StringVar(win)
+        ttk.Label(win, textvariable=progress_text).pack(fill='x', padx=8)
+        tracker = SearchProgress(progressbar, progress_text, self.localizer)
         cols = ("name", "dmid", "da", "db", "info")
         tree = ttk.Treeview(win, columns=cols, show="headings", height=18)
         for c, w, t in [("name", 200, "星系"), ("dmid", 90, "距中点ly"),
@@ -1685,6 +1673,7 @@ class App:
                 messagebox.showwarning("提示", "请填写 A、B 星系", parent=win)
                 return
             btn["state"] = "disabled"
+            tracker.update()
             status.set("查询中...")
             tree.delete(*tree.get_children())
             a, b = va.get(), vb.get()
@@ -1696,20 +1685,22 @@ class App:
                     info, rows = eng.midpoint_search(
                         a, b, want=n,
                         populated_only=populated,
-                        exclude_permit=exclude, corrections=corr)
+                        exclude_permit=exclude, corrections=corr,
+                        progress=lambda msg, detail=None: self._post(win, lambda: (status.set(msg), tracker.update(msg, detail))))
 
                     def show():
                         for r in rows:
                             permit = "需许可" if r.get("needs_permit") else "免许可"
                             tree.insert("", "end", values=(
-                                r.get("name"), r.get("_d_mid"),
-                                r.get("_d_a"), r.get("_d_b"),
-                                f"pop {r.get('population')} | "
+                                r.get("name"), format_ly(r.get("_d_mid")),
+                                format_ly(r.get("_d_a")), format_ly(r.get("_d_b")),
+                                f"pop {format_population(r.get('population'), '?')} | "
                                 f"{r.get('allegiance')} | {permit}"))
                         va.set(info["a"])
+                        tracker.finish(info.get('complete', False))
                         vb.set(info["b"])
-                        msg = (f"{info['a']} ↔ {info['b']} 相距 {info['ab']}ly, "
-                               f"中点{info['mid']}, 找到 {len(rows)} 条")
+                        msg = (f"{info['a']} ↔ {info['b']} 相距 {format_ly(info['ab'])}ly, "
+                                f"中点({', '.join(format_ly(v) for v in info['mid'])}), 找到 {len(rows):,} 条")
                         if corr:
                             msg += "；" + "、".join(f"'{a}'→'{b}'" for a, b in corr) + "已自动纠正"
                         status.set(msg)
@@ -1718,6 +1709,7 @@ class App:
                 except Exception as e:
                     self._post(win, lambda error=str(e): (
                         messagebox.showerror("查找失败", error, parent=win),
+                        tracker.finish(False),
                         status.set("失败"),
                         btn.__setitem__("state", "normal")))
 
@@ -1741,7 +1733,7 @@ class App:
             for r in self.results:
                 w.writerow([r.get("name"), r.get("system_name") or r.get("name"),
                             f"{r.get('type', '')} {r.get('primary_economy', '')}",
-                            json.dumps(r.get("_distances", {}), ensure_ascii=False),
+                             json.dumps({ref: format_ly(distance) for ref, distance in r.get("_distances", {}).items()}, ensure_ascii=False),
                              json.dumps(r, ensure_ascii=False)])
         self.status.set(f"已导出 {p}")
 
