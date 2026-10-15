@@ -2,17 +2,19 @@
 
 [English](README.md) · [简体中文](README_zh-CN.md) · [发行版本 / Releases](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
 
+[详细检索逻辑与工具规则](README_检索逻辑.md)
+
 基于 [Spansh](https://spansh.co.uk/) 数据的 Elite Dangerous 星系与空间站筛选工具，使用 Python / tkinter，支持即时中英文切换。
 
 **项目定位：不一定比 Inara 更好用，但提供更全面、更灵活、可自由组合的筛选条件。** 适合作为复杂检索的补充工具。
 
 仓库：[kxdxzr/Elite_dangerous_Filter](https://github.com/kxdxzr/Elite_dangerous_Filter)。项目由 **GPT-6.1 Sol** 通过 **vibe coding** 完成，并根据用户需求持续迭代。
 
-> **v0.1.1：海盗任务查找功能仍在测试中。** 它提供候选来源／目标，不保证游戏内实时任务、派系数量或 RES 可用性。星环推定 RES 与明确记录会分别标注，请在游戏中核实。
+> **v0.1.2：殖民候选星系查找器正式发布；海盗任务查找功能仍在测试中。** 海盗查询提供候选来源／目标，不保证游戏内实时任务、派系数量或 RES 可用性。星环推定 RES 与明确记录会分别标注，请在游戏中核实。
 
 ## 下载与启动
 
-[**下载 Windows EXE**](https://github.com/kxdxzr/Elite_dangerous_Filter/releases/download/v0.1.1/EliteDangerousFilter.exe) · [v0.1.1 发布说明](docs/releases/v0.1.1.md) · [所有版本](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
+[**下载 Windows EXE**](https://github.com/kxdxzr/Elite_dangerous_Filter/releases/download/v0.1.2/EliteDangerousFilter.exe) · [v0.1.2 发布说明](docs/releases/v0.1.2.md) · [所有版本](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
 
 Windows 64 位单文件程序，双击 `EliteDangerousFilter.exe` 即可使用，无需安装 Python。实际查询需要联网，无需 API key。
 
@@ -30,12 +32,14 @@ python filter_gui.py
 
 ## 功能
 
+- **殖民候选星系查找器（v0.1.2 新增）**：强制零人口、无站点、无需许可。区域半径与距最近人口达标星系的距离上下限分别可选，星系价值也可选；支持星球与独立星环条件组（全部／任一存在）、卫星关系和互绕成员推定。详见 [v0.1.2 发布说明](docs/releases/v0.1.2.md)。
+- **v0.1.2 主界面扩展**：星系普通行新增站点／航母／派系数量；通过 **天体／最近有人条件** 添加嵌套星球／星环组及带可编辑人口门槛的最近距离范围。与普通条件组合，不附带殖民限制；详见 [详细规则](README_检索逻辑.md)。
 - **通用筛选**：星系／空间站查询，重复条件组合；同一行多选为 OR，不同行为 AND。
 - **距离与模块**：多参考点距离交集／范围外查询，同件模块等级／级别匹配，以及船厂／改装数据新鲜度条件。
-- **航母车位估计**：最多 50 ly，统计包括航母在内的站点数；<10 标为大概率有靠近主星的车位，10–19 标为大概率有车位。这不是实际空位 API。
+- **航母车位查找**：最多 50 ly，按 Spansh 已收录的航母站点类型直接计数来筛选停车候选星系，支持含边界的最少／最多航母数量筛选，类型数据不完整显示未知；数量不代表实时空位。
 - **稀有商品目标查找**：142 个来源条目、138 个星系，默认 Ngurii，目标范围默认 200–220 ly。指定关联 Power 或扫描全 12 个势力，要求大型坪，排除地面站、航母、殖民船；各势力先查 ≤100 Ls，完整检索无结果后才放宽到 ≤1000 Ls，按 ly、Ls 排序各显示前 5 站。
 - **海盗任务候选查找（测试中）**：EDTools 配对与地点记录，叠加 Spansh 小派系、数量、控制 Power、来源站与目标星环距离条件。
-- **辅助操作**：两系中点、停止、检索诊断、CSV 导出、条件保存／加载，以及主界面和四个辅助工具的会话恢复。
+- **辅助操作**：两系中点、停止、检索诊断、CSV 导出、条件保存／加载，以及主界面和五个辅助工具的会话恢复。
 
 ## 海盗任务查找（测试中）
 
@@ -67,7 +71,7 @@ python filter_gui.py
 
 ## 会话、数据与限制
 
-- 每 1.5 秒自动保存变更，关闭窗口时保存；兼容旧会话，保留未填完的主条件草稿、语言和四个工具参数。原子写入，关闭时保存失败会提示并保留窗口。
+- 每 1.5 秒自动保存变更，关闭窗口时保存；兼容旧会话，保留未填完的主条件草稿、语言和五个工具参数。原子写入，关闭时保存失败会提示并保留窗口。
 - EXE 数据目录为 `%LOCALAPPDATA%\EliteDangerousFilter\`；源码默认使用项目目录，可通过 `ELITE_FILTER_DATA_DIR` 覆盖。`last_session.json`、候选／规格缓存、`pve_cache_*.json` 和导出的 CSV 均不上传仓库。
 - 数据不是实时任务、库存或空位。派系数量只估计潜在任务发布者，需要游戏内确认 BGS、声望和任务。
 - 稀有商品工具使用关联 Power，暂以 Spansh `Unoccupied` 作为 Inara Unoccupied / Expansion / Contested 的合并候选；对应关系尚未样本验证，不能分别筛选后两者。
@@ -82,15 +86,15 @@ python -m pip install -r requirements-build.txt
 python -m PyInstaller --noconfirm --clean EliteDangerousFilter.spec
 ```
 
-145 项测试覆盖引擎、会话、本地化、PvE 条件／数据完整性／缓存／并发及真实 GUI 操作。Tk 测试需要图形环境；Linux 无 DISPLAY 时跳过 GUI 测试。GitHub Actions 测试 Windows / Ubuntu、Python 3.10 / 3.13。
+自动化测试覆盖引擎、会话、本地化、PvE 与殖民条件／数据完整性／缓存／并发及真实 GUI 操作。Tk 测试需要图形环境；Linux 无 DISPLAY 时跳过 GUI 测试。GitHub Actions 测试 Windows / Ubuntu、Python 3.10 / 3.13。
 
-构建输出 `dist/EliteDangerousFilter.exe`。隔离目录中使用 `--smoke-test <报告.json>` 验证四个窗口和中英文加载；分别运行 `--session-test write <报告.json>` 与 `--session-test read <另一报告.json>` 验证跨进程恢复。会话测试必须设置独立 `ELITE_FILTER_DATA_DIR`；报告目录须存在。
+构建输出 `dist/EliteDangerousFilter.exe`。隔离目录中使用 `--smoke-test <报告.json>` 验证五个工具窗口和中英文加载；分别运行 `--session-test write <报告.json>` 与 `--session-test read <另一报告.json>` 验证跨进程恢复。会话测试必须设置独立 `ELITE_FILTER_DATA_DIR`；报告目录须存在。
 
 CLI 示例：`python spansh_filter.py --help`；参数说明见 [筛选器说明](README_筛选器说明.txt)。主要模块：`filter_gui.py` / `filter_engine.py`、`powerplay_gui.py` / `powerplay_tool.py`、`pve_gui.py` / `pve_tool.py`、`pve_access.py` / `pve_cache.py`、`i18n.py` / `localized_tk.py`、`faction_options.py`。
 
 ## 截图
 
-以下中文界面截图覆盖主界面及全部四个辅助工具，展示实际 GUI 查询结果，具体记录会随上游数据变化；新增工具截图拍摄于 2026-10-14。英文界面截图见 [英文 README](README.md#screenshots)，所有工具均支持通过主界面的语言选择即时切换为英文。
+以下中文界面截图为 v0.1.1 主界面及原有四个辅助工具，拍摄于 2026-10-14，尚未展示 v0.1.2 新增殖民工具及更新的航母筛选；具体记录会随上游数据变化。英文界面截图见 [英文 README](README.md#screenshots)，所有工具均支持通过主界面的语言选择即时切换为英文。
 
 ### 主界面
 
@@ -114,7 +118,7 @@ CLI 示例：`python spansh_filter.py --help`；参数说明见 [筛选器说明
 
 ### 航母车位查找器
 
-Sol 周围 15 ly 的站点／航母统计及车位估计；这是已收录数据估计，不是实时空位。
+v0.1.1 历史截图：Sol 周围 15 ly 的站点／航母统计及旧版车位估计。v0.1.2 保留工具名称，改用航母数量范围筛选；两个版本均不提供实时空位。
 
 ![航母车位查找器](docs/images/carrier-parking-finder.png)
 

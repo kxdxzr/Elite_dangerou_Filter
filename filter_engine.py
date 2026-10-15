@@ -9,12 +9,21 @@ import urllib.request
 import gzip
 
 import field_options as fo
+from system_filter_fields import COUNT_FIELDS
 
 SPansh_BASE = "https://spansh.co.uk/api"
 EDSM_SYSTEM_URL = "https://www.edsm.net/api-v1/system"
 
 _coords_cache = {}
 _ref_cache = {}
+
+
+def is_excluded_system(kind, row):
+    """Exclude Spansh's anomalous Test record, including its stations."""
+    name = row.get("system_name") if kind == "stations" else row.get("name")
+    ident = row.get("system_id64") if kind == "stations" else row.get("id64")
+    return (str(ident) == "7780433924818"
+            or str(name or "").strip().casefold() == "test")
 
 
 def _http_json(url, payload=None, timeout=60, compressed=False):
@@ -170,6 +179,7 @@ _SYS_NUM = {"population", "body_count", "nearest_populated_distance",
             "x", "y", "z"}
 _SYS_STR = {"name"}
 _SYS_TS = {"updated_at"}
+_SYS_NUM.update(COUNT_FIELDS)
 
 BIG = 10 ** 15  # 开口区间的哨兵 (服务器不接受null端)
 
@@ -300,6 +310,17 @@ def normalize_conditions(kind, conditions):
     result = copy.deepcopy(conditions)
     for i, c in enumerate(result, 1):
         label = f"第{i}条条件"
+        if c.get('type') == 'system_details':
+            if kind != 'systems':
+                raise ValueError('天体／最近有人条件仅用于星系查询')
+            import system_filters
+            c.update(system_filters.validate(c))
+            continue
+        if c.get('field') in COUNT_FIELDS:
+            if kind != 'systems':
+                raise ValueError('星系派生数量仅用于星系查询')
+            if c.get('op') not in ('=', '!=', 'in', 'not in', '<', '<=', '>', '>=', 'between', 'outside'):
+                raise ValueError('派生数量条件需要数值操作')
         if c.get("type", "field") == "distance":
             c["ref_system"] = str(c.get("ref_system", "")).strip()
             if not c["ref_system"]:
@@ -424,6 +445,9 @@ def plan_server_filters(kind, conditions):
     seen_strings = {}
     for c in conditions:
         if c.get("type") == "distance":
+            continue
+        if c.get('type') == 'system_details' or c.get('field') in COUNT_FIELDS:
+            local_only += 1
             continue
         f, op = c["field"], c["op"]
         sf = _server_name(kind, f)
@@ -809,6 +833,10 @@ def match_all(kind, row, conditions, coord_cache):
         if c.get("type") == "distance":
             if not match_distance(kind, row, c, coord_cache):
                 return False
+        elif c.get('type') == 'system_details':
+            import system_filters
+            if system_filters.outcome(row, c) is not True:
+                return False
         else:
             if not match_field(kind, row, c):
                 return False
@@ -819,7 +847,15 @@ def match_candidate(kind, row, conditions, coord_cache, filters, missing):
     """后端有些字段仅可筛选、未返回。精确下推的条件信任后端。
     无法复核的本地条件不冒充通过，并汇总缺失字段供用户诊断。
     """
-    for c in conditions:
+    for c in sorted(conditions, key=lambda c: 2 if c.get('type') == 'system_details' else 1 if c.get('field') in COUNT_FIELDS else 0):
+        if c.get('type') == 'system_details':
+            import system_filters
+            hit = system_filters.outcome(row, c)
+            if hit is None:
+                missing.add('天体／最近有人条件')
+            if hit is not True:
+                return False
+            continue
         if c.get("type") == "distance":
             if not match_distance(kind, row, c, coord_cache):
                 return False
@@ -1030,6 +1066,8 @@ def search(kind, conditions, want=200, max_pages=25, progress=None,
         notes.append(str(exc))
         return [], 0, 0
     filters, pushed, pnotes, _ = plan_server_filters(kind, conditions)
+    detailed = kind == 'systems' and any(c.get('type') == 'system_details' or c.get('field') in COUNT_FIELDS for c in conditions)
+    cheap = [c for c in conditions if c.get('type') != 'system_details' and c.get('field') not in COUNT_FIELDS]
     notes.extend(pnotes)
     per = page_size
     coord_cache = {}
@@ -1083,6 +1121,27 @@ def search(kind, conditions, want=200, max_pages=25, progress=None,
         if not rs:
             reason = "候选分页已取完"
             break
+        if detailed:
+            import system_filters
+            rs = [dict(r) for r in rs]
+            survivors, pending = [], set()
+            for r in rs:
+                ident = (kind, r.get('id64'))
+                if ident[1] is None:
+                    ident = (kind, r.get('system_name'), r.get('name'), result_coords(kind, r))
+                if ident in seen or ident in pending:
+                    continue
+                pending.add(ident)
+                if not is_excluded_system(kind, r) and match_candidate(kind, r, cheap, coord_cache, template['filters'], missing):
+                    survivors.append(r)
+            try:
+                system_filters.prepare(survivors, conditions, stop=stop, max_pages=max_pages,
+                                       progress=lambda: _report(progress, '正在复核星系详细条件…',
+                                                                phase='fetch', scanned=scanned, hits=len(out),
+                                                                total=total, page=page, pages=max_pages, want=want))
+            except InterruptedError:
+                reason = '已手动停止，返回部分结果'
+                break
         new_count = 0
         for r in rs:
             if cancelled():
@@ -1096,6 +1155,8 @@ def search(kind, conditions, want=200, max_pages=25, progress=None,
             seen.add(ident)
             new_count += 1
             scanned += 1
+            if is_excluded_system(kind, r):
+                continue
             r.pop("_distances", None)
             if match_candidate(kind, r, conditions, coord_cache, template["filters"], missing):
                 for c in conditions:
@@ -1146,6 +1207,8 @@ def fresh_suffix(c):
 
 
 def cond_desc(c):
+    if c.get('type') == 'system_details':
+        return '天体／最近有人条件'
     if c.get("type") == "distance":
         mode = "内" if c.get("mode", "inside") == "inside" else "外"
         return f"距{c.get('ref_system')}{c.get('min_ly') or 0}~{c.get('max_ly') or '∞'}ly范围{mode}"
@@ -1182,12 +1245,19 @@ def diagnose(kind, conditions, pages=3):
         if len(rs) < 100:
             break
     stats = []
+    if kind == 'systems' and any(c.get('type') == 'system_details' or c.get('field') in COUNT_FIELDS for c in conditions):
+        import system_filters
+        system_filters.prepare(sample, conditions, max_pages=pages)
     for c in conditions:
         hit = 0
         for r in sample:
             r.pop("_distances", None)
             if c.get("type") == "distance":
                 if match_distance(kind, r, c, dict(coord_cache)):
+                    hit += 1
+            elif c.get('type') == 'system_details':
+                import system_filters
+                if system_filters.outcome(r, c) is True:
                     hit += 1
             elif match_field(kind, r, c):
                 hit += 1
@@ -1196,22 +1266,21 @@ def diagnose(kind, conditions, pages=3):
 
 
 def carrier_parking_summary(row):
-    """统计 Spansh 星系列表中的全部站点（包括航母），缺失不按零处理。"""
+    """统计已收录航母；站点类型不完整时航母数未知，不估计车位。"""
     stations = row.get("stations")
     if not isinstance(stations, list) or any(not isinstance(s, dict) for s in stations):
         return None, None, "未知", "站点数据缺失，无法判断"
     count = len(stations)
-    carriers = sum("carrier" in str(s.get("type", "")).casefold() for s in stations)
-    if count < 10:
-        return count, carriers, "主星附近", "大概率有靠近主星的车位"
-    if count < 20:
-        return count, carriers, "有车位", "大概率有车位"
-    return count, carriers, "较拥挤", "未达到低于20的推荐阈值"
+    if any(not isinstance(s.get('type'), str) or not s['type'].strip() for s in stations):
+        return count, None, "未知", "航母类型数据不完整"
+    carriers = sum("carrier" in s['type'].casefold() for s in stations)
+    return count, carriers, "已收录", "按已收录航母统计"
 
 
-def carrier_parking_search(ref_system, radius_ly=30, candidates_only=True,
-                           exclude_permit=True, max_pages=20, progress=None, stop=None):
-    """检索半径内星系并按站点总数估计车位；返回 (info, rows)。"""
+def carrier_parking_search(ref_system, radius_ly=30,
+                           exclude_permit=True, max_pages=20, progress=None, stop=None,
+                           min_carriers=None, max_carriers=None):
+    """检索半径内星系的航母数量，按含边界的数量范围筛选。"""
     name = (ref_system or "").strip()
     if not name:
         raise ValueError("请填写参考星系")
@@ -1220,6 +1289,11 @@ def carrier_parking_search(ref_system, radius_ly=30, candidates_only=True,
         raise ValueError("搜索半径必须大于 0 且不超过 50 ly")
     if isinstance(max_pages, bool) or not isinstance(max_pages, int) or max_pages < 1:
         raise ValueError("翻页上限必须是正整数")
+    for bound in (min_carriers, max_carriers):
+        if bound is not None and (isinstance(bound, bool) or not isinstance(bound, int) or bound < 0):
+            raise ValueError("航母数量须为非负整数，留空不限")
+    if min_carriers is not None and max_carriers is not None and min_carriers > max_carriers:
+        raise ValueError("最少航母数不能大于最多航母数")
     conditions = [dict(type="distance", ref_system=name, min_ly=None,
                        max_ly=radius, mode="inside")]
     corrections, notes = [], []
@@ -1229,11 +1303,13 @@ def carrier_parking_search(ref_system, radius_ly=30, candidates_only=True,
     rows, unknown = [], 0
     for system in systems:
         count, carriers, category, label = carrier_parking_summary(system)
-        if count is None:
+        if carriers is None:
             unknown += 1
         if exclude_permit and system.get("needs_permit") is not False:
             continue
-        if candidates_only and (count is None or count >= 20):
+        if (min_carriers is not None or max_carriers is not None) and (
+                carriers is None or (min_carriers is not None and carriers < min_carriers)
+                or (max_carriers is not None and carriers > max_carriers)):
             continue
         row = dict(system)
         row.update(_station_count=count, _carrier_count=carriers,
@@ -1277,6 +1353,8 @@ def midpoint_search(name_a, name_b, want=20, populated_only=False,
         if not rs:
             break
         for r in rs:
+            if is_excluded_system("systems", r):
+                continue
             try:
                 rc = (float(r["x"]), float(r["y"]), float(r["z"]))
             except (KeyError, TypeError, ValueError):

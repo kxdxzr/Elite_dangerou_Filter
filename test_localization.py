@@ -52,7 +52,9 @@ class TranslationTests(unittest.TestCase):
                      '服务器候选计数已封顶 (10000)，不代表全库总数',
                      '标准范围（未完成）', '大概率有靠近主星的车位',
                      'modules in [Fuel Scoop] [5级/B级] [数据7天内]', '距Sol0~50ly范围内',
-                     'has_market=否由本地过滤 (服务器不支持)',
+                      'has_market=否由本地过滤 (服务器不支持)',
+                     '航母车位查找', '航母类型数据不完整', '按已收录航母统计',
+                     'Sol 周围 15 ly：扫描 51 个星系，显示 17 个；范围内分页已取完。航母数量未知 2 个。',
                      'Sol 周围 15 ly：扫描 51 个星系，显示 17 个；范围内分页已取完。站点数据未知 0 个。'):
             rendered = i18n.translate(text, 'en')
             self.assertFalse(re.search(r'[\u3400-\u9fff]', rendered), rendered)

@@ -2,6 +2,64 @@
 import re
 
 CATALOG = {
+    '+ 天体／最近有人条件': '+ Planet / nearest-populated conditions',
+    '天体／最近有人条件': 'Planet / nearest-populated conditions',
+    '编辑详细条件…': 'Edit detailed conditions…', '主界面星系详细条件': 'Main-window system details',
+    '仅用于星系查询': 'System queries only', '请先切换为星系查询': 'Switch to system queries first',
+    '天体／最近有人条件仅用于星系查询': 'Planet / nearest-populated conditions require system queries',
+    '星系派生数量仅用于星系查询': 'Derived system counts require system queries',
+    '派生数量条件需要数值操作': 'Derived counts require numeric operators',
+    '星系模式：数量用普通条件；天体组和最近有人距离用详细条件。':
+        'Systems: use field conditions for counts; detailed conditions for planet groups and verified nearest-populated distance.',
+    '详细条件与主界面其他行之间为 AND；此处不强制零人口、无站点或免许可。':
+        'Detailed conditions combine with other main-window rows using AND; no zero-population, station-free or permit-free restriction is imposed here.',
+    '最近有人星系距离（可选）': 'Nearest populated system distance (optional)',
+    '附近星系人口大于': 'Nearby system population greater than',
+    '距离上下限都留空则不启用；先查最近达标星系，再判断含边界的范围。普通距离行可同时限定搜索区域。':
+        'Leave both distance bounds blank to disable. Find the nearest qualifying system first, then check inclusive bounds. Ordinary distance rows can also limit the search region.',
+    '站点、航母和派系数量通过主界面的普通条件字段设置；任务派系数量为非无政府派系估计。':
+        'Use main-window field conditions for station, carrier and faction counts. Potential mission issuers are estimated from non-Anarchy factions.',
+    '正在复核星系详细条件…': 'Verifying detailed system conditions…',
+    '区域距离（可选）': 'Regional distance (optional)',
+    '最近人口 > 1 星系距离（可选）': 'Nearest population > 1 distance (optional)',
+    '最近有人星系最小 ly': 'Minimum distance ly', '最近有人星系最大 ly': 'Maximum distance ly',
+    '价值与查询数量': 'Value and query limits', '最近人口达标星系': 'Nearest qualifying populated system',
+    '最近星系人口': 'Nearest system population', '最近星系距离 ly': 'Nearest system distance ly',
+    '两套距离独立且同时启用时为 AND；最近距离先找最近人口达标星系，再判断上下限，包含边界。':
+        'The two distance filters are independent and combine with AND. Find the nearest qualifying populated system first, then check inclusive distance bounds.',
+    '殖民候选星系查找器': 'Colonisation candidate finder',
+    '区域参考星系（可选）': 'Regional reference (optional)',
+    '区域半径 ly（留空不限）': 'Regional radius ly (blank: any)',
+    '距人口 > 1 星系最大 ly（可选）': 'Max ly to population > 1 (optional)',
+    '星系价值大于（可选）': 'System value greater than (optional)',
+    '星系价值字段': 'System value field', '最大页数': 'Maximum pages', '最多结果': 'Maximum results',
+    '强制：零人口、无任何站点（含航母）、明确无需许可。可选数值留空不限，0 是实际阈值。':
+        'Required: zero population, no stations (including carriers), explicitly no permit requirement. Blank optional numbers mean unrestricted; 0 is a real threshold.',
+    'in 多选及 between 范围用 | 分隔；布尔值用 true / false。互绕按共同直接质心和相同周期推定，复杂／缺失关系为未知。':
+        'Use | for in choices and between bounds; booleans use true / false. Binary membership is inferred from a shared immediate barycentre and equal periods; complex/missing relationships are Unknown.',
+    '星球条件': 'Planet conditions', '独立星环条件': 'Independent ring conditions',
+    '条件组之间': 'Between groups', '条件组': 'Condition group',
+    'AND：全部存在；OR：任一存在。组内条件由同一天体／星环同时满足。':
+        'AND: all groups exist; OR: any group exists. Conditions within a group must match the same body/ring.',
+    '添加条件组': 'Add group', '添加条件': 'Add condition', '删除组': 'Delete group', '删除条件': 'Delete condition',
+    '可选条件留空不限；查询只覆盖第三方已记录数据。':
+        'Blank optional criteria mean unrestricted; searches cover only third-party recorded data.',
+    '候选星系': 'Candidate system', '星系价值': 'System value', '区域距离 ly': 'Regional distance ly',
+    '人口达标星系': 'Qualifying populated system', '附近星系人口': 'Nearby system population',
+    '附近星系距离 ly': 'Nearby system distance ly', '匹配星球（按组）': 'Matching planets (by group)',
+    '匹配星环（按组）': 'Matching rings (by group)', '天体关系（推定）': 'Relationships (inferred)',
+    '记录更新时间': 'Record updated', '星球类型': 'Planet subtype', '可着陆': 'Landable',
+    '地球化状态': 'Terraforming state', '重力 G': 'Gravity G', '到达距离 Ls': 'Arrival distance Ls',
+    '表面温度 K': 'Surface temperature K', '表面气压 atm': 'Surface pressure atm',
+    '大气类型': 'Atmosphere', '火山活动类型': 'Volcanism', '半径 km': 'Radius km',
+    '地球质量': 'Earth masses', '潮汐锁定': 'Tidally locked', '自转周期 天': 'Rotation period days',
+    '公转周期 天': 'Orbital period days', '轨道偏心率': 'Orbital eccentricity',
+    '轨道倾角 度': 'Orbital inclination degrees', '轨道半长轴 AU': 'Semi-major axis AU',
+    '储量等级': 'Reserve level', '地表材料': 'Surface materials', '信号类型': 'Signal type', '信号数量': 'Signal count',
+    '天体估算测绘价值': 'Body estimated mapping value', '天体估算扫描价值': 'Body estimated scan value',
+    '是卫星': 'Is a moon', '拥有卫星': 'Has moons', '互绕成员（关系推定）': 'Binary member (inferred)',
+    '星环类型': 'Ring type', '星环内半径 m': 'Ring inner radius m', '星环外半径 m': 'Ring outer radius m',
+    '星环质量（源数据单位）': 'Ring mass (source units)',
     '复制任务来源星系': 'Copy mission source system',
     '来源停机坪（可停靠船型）': 'Source pad (ship size)',
     '来源空间站最大距离 Ls': 'Source station max arrival Ls',
@@ -69,6 +127,18 @@ CATALOG = {
     '通过率仅针对这些候选样本；0% 不代表全库无结果。多距离组合注意两圈是否有交集。':
         'Pass rates apply only to these samples; 0% does not mean no results exist. Check whether distance regions intersect.',
     '航母车位查找': 'Carrier parking finder', '参考星系': 'Reference system',
+    '航母数量': 'Carrier count',
+    '最少航母数': 'Min carriers', '最多航母数': 'Max carriers',
+    '留空不限，包含边界': 'Blank: unrestricted; inclusive bounds',
+    '统计状态': 'Count status', '查询航母数量': 'Find carrier counts',
+    '航母类型数据不完整': 'Incomplete station type data',
+    '按已收录航母统计': 'Counted from catalogued carriers',
+    '航母数量须为非负整数，留空不限': 'Carrier bounds must be non-negative integers; blank is unrestricted',
+    '最少航母数不能大于最多航母数': 'Minimum carriers must not exceed maximum carriers',
+    '按站点类型统计 Spansh 已收录航母，不是实时数量或车位预测。类型数据不完整显示未知；数量筛选不包含未知结果。':
+        'Counts use carrier station types catalogued by Spansh, not live positions or parking estimates. Incomplete types show Unknown; count filters exclude Unknown results.',
+    '请填参考星系、有效半径和页数；航母数量为非负整数或留空，最少不能大于最多':
+        'Enter a reference, valid radius and page limit. Carrier bounds must be non-negative integers or blank; minimum must not exceed maximum.',
     '半径 ly (≤50)': 'Radius ly (≤50)', '最多页数': 'Max pages',
     '只显示站点少于20的星系': 'Only systems with fewer than 20 stations',
     '只显示确认免许可的星系': 'Only confirmed permit-free systems',
@@ -192,7 +262,7 @@ FRAGMENTS = {
     '个星系；筛选后请从下拉选择': ' systems; choose from the filtered list',
     '每势力最多5条，ly优先、Ls其次': 'max 5 per Power; ly then Ls', '扫描候选 ': 'Candidates scanned: ',
     '个势力': ' Powers', '参考 ': 'Reference: ', '周围 ': ' around ', '扫描 ': 'Scanned: ',
-    '站点数据未知 ': 'Unknown station data: ', '相距 ': 'separation ', '中点': 'midpoint ', '找到 ': 'Found: ',
+    '站点数据未知 ': 'Unknown station data: ', '航母数量未知 ': 'Unknown carrier counts: ', '相距 ': 'separation ', '中点': 'midpoint ', '找到 ': 'Found: ',
     '势力': 'Power', '来源': 'Source', '商品': 'Goods', '到站': 'Arrival', '个': ' ',
     '已达到所需结果数': 'Requested result count reached', '候选分页已取完': 'All candidate pages fetched',
     '已手动停止': 'Stopped by user', '达到翻页上限': 'Page limit reached', '解析参考星系': 'Resolving reference system',

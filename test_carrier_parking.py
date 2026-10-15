@@ -12,12 +12,37 @@ def system(name, count, x=1, permit=False):
 
 
 class CarrierParkingTests(unittest.TestCase):
-    def test_thresholds_and_carriers_in_total(self):
-        for count, category in ((0, "主星附近"), (9, "主星附近"),
-                                (10, "有车位"), (19, "有车位"), (20, "较拥挤")):
+    def test_carriers_counted_independently_of_station_total(self):
+        for count in (0, 9, 10, 19, 20, 100):
             with self.subTest(count=count):
                 total, carriers, actual, _ = engine.carrier_parking_summary(system("A", count))
-                self.assertEqual((total, carriers, actual), (count, int(count > 0), category))
+                self.assertEqual((total, carriers, actual), (count, int(count > 0), "已收录"))
+
+    def test_missing_types_are_unknown_not_zero(self):
+        for station in ({}, {'type': None}, {'type': 1}, {'type': '  '}):
+            self.assertEqual(engine.carrier_parking_summary(dict(stations=[station]))[:3],
+                             (1, None, '未知'))
+
+    def test_inclusive_count_bounds_and_unknown_exclusion(self):
+        records = [system('zero', 0), system('one', 25),
+                   {**system('two', 0), 'stations': [{'type': 'Fleet Carrier'}, {'type': 'Drake-Class Carrier'}]},
+                   {**system('unknown', 0), 'stations': [{}]}]
+        with patch.object(engine, 'resolve_ref', return_value=('Sol', (0, 0, 0), False)), \
+                patch.object(engine, '_http_json', return_value=dict(count=4, results=records)):
+            _, rows = engine.carrier_parking_search('Sol', min_carriers=1, max_carriers=2)
+            self.assertEqual([r['name'] for r in rows], ['one', 'two'])
+            _, rows = engine.carrier_parking_search('Sol', max_carriers=0)
+            self.assertEqual([r['name'] for r in rows], ['zero'])
+            info, rows = engine.carrier_parking_search('Sol')
+            self.assertEqual(len(rows), 4)
+            self.assertEqual(info['unknown'], 1)
+
+    def test_invalid_count_bounds(self):
+        for bounds in (dict(min_carriers=-1), dict(max_carriers=True), dict(min_carriers=1.5),
+                       dict(max_carriers='2'), dict(max_carriers=float('nan')),
+                       dict(min_carriers=3, max_carriers=2)):
+            with self.subTest(bounds=bounds), self.assertRaises(ValueError):
+                engine.carrier_parking_search('Sol', **bounds)
 
     def test_missing_and_invalid_stations_are_unknown(self):
         for value in (None, 0, {}, [None], ["carrier"]):
@@ -33,8 +58,8 @@ class CarrierParkingTests(unittest.TestCase):
         with patch.object(engine, "resolve_ref", return_value=("Sol", (0, 0, 0), False)), \
                 patch.object(engine, "_http_json", return_value=dict(count=7, results=records)) as http:
             info, rows = engine.carrier_parking_search("Sol", 30)
-        self.assertEqual([r["name"] for r in rows], ["near", "far"])
-        self.assertEqual([r["_station_count"] for r in rows], [9, 19])
+        self.assertEqual([r["name"] for r in rows], ["near", "crowded", "unknown", "far"])
+        self.assertEqual([r["_station_count"] for r in rows], [9, 20, None, 19])
         self.assertEqual(rows[0]["_parking_distance"], 1)
         self.assertTrue(info["complete"])
         self.assertEqual(info["unknown"], 1)
@@ -47,7 +72,7 @@ class CarrierParkingTests(unittest.TestCase):
                    dict(name="unknown", id64="unknown", x=1, y=0, z=0)]
         with patch.object(engine, "resolve_ref", return_value=("Sol", (0, 0, 0), False)), \
                 patch.object(engine, "_http_json", return_value=dict(count=3, results=records)):
-            _, rows = engine.carrier_parking_search("Sol", candidates_only=False, exclude_permit=False)
+            _, rows = engine.carrier_parking_search("Sol", exclude_permit=False)
         self.assertEqual(len(rows), 3)
         unknown = next(r for r in rows if r["name"] == "unknown")
         self.assertIsNone(unknown["_station_count"])

@@ -26,6 +26,10 @@ import filter_engine as eng
 import field_options as fo
 import session_store
 from runtime_paths import data_file
+from system_filter_fields import COUNT_FIELDS
+
+SYSTEM_FIELDS = dict(SYSTEM_FIELDS, **COUNT_FIELDS)
+SYSTEM_FIELDS_CN.update(COUNT_FIELDS)
 
 OP_LABELS = ["属于其一", "不属于", "等于", "不等于", "包含",
              "<", "<=", ">", ">=", "区间(内)", "范围外", "是", "否"]
@@ -632,6 +636,13 @@ class Row:
             return
         self.cb_val["state"] = "normal"
         field = parse_field_label(self.field.get().strip())
+        if self.kind == 'systems' and field in COUNT_FIELDS:
+            self._seq += 1
+            self._options = []
+            self.cb_val['values'] = []
+            self.btn_pick['state'] = 'disabled'
+            self.opt_info.set('填数字/min~max')
+            return
         if field in FRESH_FIELDS and op in ("区间(内)", "范围外"):
             # 新鲜度快捷: 可选近N天, 也可手填日期区间
             self.cb_val["values"] = list(FRESH_QUICK)
@@ -917,6 +928,12 @@ class App:
         ttk.Button(top, text="诊断", command=self.diagnose).pack(side="left")
         ttk.Button(top, text="导出CSV", command=self.export).pack(side="left", padx=4)
 
+        details_bar = ttk.Frame(root, padding=(6, 2))
+        details_bar.pack(fill='x')
+        ttk.Button(details_bar, text='+ 天体／最近有人条件', command=self.add_system_details).pack(side='left', padx=4)
+        ttk.Label(details_bar, text='星系模式：数量用普通条件；天体组和最近有人距离用详细条件。',
+                  foreground='gray').pack(side='left', padx=4)
+
         extra = ttk.Frame(root, padding=(6, 0, 6, 6))
         extra.pack(fill="x")
         ttk.Label(extra, text="额外功能：", foreground="gray").pack(side="left")
@@ -924,6 +941,7 @@ class App:
         ttk.Button(extra, text="航母车位", command=self.carrier_parking_window).pack(side="left", padx=4)
         ttk.Button(extra, text="稀有商品目标查找器", command=self.rare_goods_window).pack(side="left", padx=4)
         ttk.Button(extra, text="海盗任务查找器", command=self.pve_window).pack(side="left", padx=4)
+        ttk.Button(extra, text="殖民候选星系查找器", command=self.colonisation_window).pack(side="left", padx=4)
         self.language = tk.StringVar(value="中文")
         language_box = ttk.Combobox(extra, textvariable=self.language,
                                    values=["中文", "English"], state="readonly", width=10)
@@ -988,6 +1006,15 @@ class App:
     def add_distance(self):
         self.rows.append(Row(self.inner, self.kind.get(), "distance"))
 
+    def add_system_details(self):
+        if self.kind.get() != 'systems':
+            messagebox.showinfo('提示', '请先切换为星系查询', parent=self.root)
+            return
+        from main_system_gui import DetailsRow
+        row = DetailsRow(self.inner, self.kind.get())
+        self.rows.append(row)
+        return row.open_editor()
+
     def clear(self):
         for r in self.rows:
             r.destroy()
@@ -1019,6 +1046,12 @@ class App:
 
     def _append_cond(self, c):
         """按一条条件字典建行 (读取文件/恢复会话共用), 条目损坏则跳过。"""
+        if c.get('type') == 'system_details':
+            from main_system_gui import DetailsRow
+            row = DetailsRow(self.inner, self.kind.get())
+            row.apply_condition(c)
+            self.rows.append(row)
+            return
         if c.get("type") == "distance":
             r = Row(self.inner, self.kind.get(), "distance")
             r.ref.set(str(c.get("ref_system") or "Sol"))
@@ -1062,7 +1095,11 @@ class App:
             self.kind.set(d["kind"])
         if isinstance(d.get("rows"), list):
             for saved in d["rows"]:
-                if not isinstance(saved, dict) or saved.get("type") not in ("field", "distance"):
+                if not isinstance(saved, dict) or saved.get("type") not in ("field", "distance", 'system_details'):
+                    continue
+                if saved['type'] == 'system_details':
+                    from main_system_gui import DetailsRow
+                    self.rows.append(DetailsRow(self.inner, self.kind.get(), saved))
                     continue
                 r = Row(self.inner, self.kind.get(), saved["type"])
                 if saved["type"] == "distance":
@@ -1339,10 +1376,12 @@ class App:
                             extra = ", ".join(
                                 f"{ref}:{r.get('_distances', {}).get(ref, '?')}ly"
                                 for ref in dist_refs)
+                            from system_filters import summary
+                            detail = summary(r)
                             self.tree.insert("", "end", values=(
                                 r.get("name"), f"pop {r.get('population')}",
                                 f"{r.get('allegiance')} | {r.get('primary_economy')} | "
-                                f"{r.get('security')}", extra))
+                                f"{r.get('security')}" + (f' | {detail}' if detail else ''), extra))
                     msg = f"服务器候选计数 {total}, 已复核 {scanned} 条, 命中 {len(rows)} 条"
                     if corr:
                         msg += "；" + "、".join(f"'{a}'→'{b}'" for a, b in corr) + "已自动纠正"
@@ -1469,6 +1508,10 @@ class App:
         from pve_gui import open_window
         return open_window(self)
 
+    def colonisation_window(self):
+        from colonisation_gui import open_window
+        return open_window(self)
+
     def carrier_parking_window(self):
         win = Toplevel(self.root)
         win.title("航母车位查找")
@@ -1487,17 +1530,21 @@ class App:
             ttk.Entry(controls, textvariable=variable, width=7).pack(side="left", padx=4)
         options = ttk.Frame(win, padding=(8, 0))
         options.pack(fill="x")
-        candidates = tk.BooleanVar(value=True)
+        minimum = tk.StringVar(value="")
+        maximum = tk.StringVar(value="")
         no_permit = tk.BooleanVar(value=True)
-        ttk.Checkbutton(options, text="只显示站点少于20的星系", variable=candidates).pack(side="left")
+        for label, variable in (("最少航母数", minimum), ("最多航母数", maximum)):
+            ttk.Label(options, text=label).pack(side="left", padx=(8, 0))
+            ttk.Entry(options, textvariable=variable, width=7).pack(side="left", padx=4)
+        ttk.Label(options, text="留空不限，包含边界").pack(side="left")
         ttk.Checkbutton(options, text="只显示确认免许可的星系", variable=no_permit).pack(side="left", padx=8)
-        ttk.Label(win, text="站点总数包含航母及地面站：<10 大概率有靠近主星的车位；10–19 大概率有车位。数据为 Spansh 已收录记录，实际车位以游戏为准。",
+        ttk.Label(win, text="按站点类型统计 Spansh 已收录航母，不是实时数量或车位预测。类型数据不完整显示未知；数量筛选不包含未知结果。",
                   wraplength=1020, foreground="gray").pack(fill="x", padx=8, pady=6)
         status = tk.StringVar(value="输入参考星系后查询；双击结果复制星系名。")
         ttk.Label(win, textvariable=status, wraplength=1020).pack(fill="x", padx=8)
         columns = [("name", 210, "星系"), ("distance", 90, "距离 ly"),
-                   ("stations", 90, "站点总数"), ("carriers", 80, "航母数"),
-                   ("parking", 250, "车位判断"), ("permit", 80, "许可"),
+                   ("carriers", 80, "航母数"), ("stations", 90, "站点总数"),
+                   ("parking", 250, "统计状态"), ("permit", 80, "许可"),
                    ("age", 110, "星系记录年龄")]
         results_frame = ttk.Frame(win)
         results_frame.pack(fill="both", expand=True, padx=8, pady=6)
@@ -1505,8 +1552,6 @@ class App:
         for column, width, title in columns:
             tree.heading(column, text=title)
             tree.column(column, width=width)
-        tree.tag_configure("主星附近", foreground="#16803c")
-        tree.tag_configure("有车位", foreground="#996600")
         tree.pack(side="left", fill="both", expand=True)
         scrollbar = ttk.Scrollbar(results_frame, orient="vertical", command=tree.yview)
         scrollbar.pack(side="right", fill="y")
@@ -1536,12 +1581,16 @@ class App:
         def run():
             try:
                 name, distance, limit = reference.get().strip(), float(radius.get()), int(pages.get())
+                low = int(minimum.get()) if minimum.get().strip() else None
+                high = int(maximum.get()) if maximum.get().strip() else None
                 if not name or not 0 < distance <= 50 or limit < 1:
                     raise ValueError()
+                if any(v is not None and v < 0 for v in (low, high)) or (low is not None and high is not None and low > high):
+                    raise ValueError()
             except ValueError:
-                messagebox.showwarning("参数错误", "请填参考星系、半径 (大于0且不超过50 ly) 和正整数页数", parent=win)
+                messagebox.showwarning("参数错误", "请填参考星系、有效半径和页数；航母数量为非负整数或留空，最少不能大于最多", parent=win)
                 return
-            only, exclude = candidates.get(), no_permit.get()
+            exclude = no_permit.get()
             stop.clear()
             button["state"] = "disabled"
             tree.delete(*tree.get_children())
@@ -1550,7 +1599,7 @@ class App:
             def work():
                 try:
                     info, rows = eng.carrier_parking_search(
-                        name, distance, candidates_only=only, exclude_permit=exclude,
+                        name, distance, min_carriers=low, max_carriers=high, exclude_permit=exclude,
                         max_pages=limit, stop=stop,
                         progress=lambda msg, detail=None: self._post(win, status.set, msg))
 
@@ -1560,12 +1609,12 @@ class App:
                             permit = row.get("needs_permit")
                             tree.insert("", "end", tags=(row["_parking_category"],), values=(
                                 row.get("name"), row["_parking_distance"],
-                                row["_station_count"] if row["_station_count"] is not None else "未知",
                                 row["_carrier_count"] if row["_carrier_count"] is not None else "未知",
+                                row["_station_count"] if row["_station_count"] is not None else "未知",
                                 row["_parking_label"], "需许可" if permit else ("免许可" if permit is False else "未知"),
                                 data_age(row.get("updated_at"))))
                         state = "范围内分页已取完" if info["complete"] else "检索未完成，当前为部分结果"
-                        status.set(f"{info['reference']} 周围 {info['radius']:g} ly：扫描 {info['scanned']} 个星系，显示 {len(rows)} 个；{state}。站点数据未知 {info['unknown']} 个。")
+                        status.set(f"{info['reference']} 周围 {info['radius']:g} ly：扫描 {info['scanned']} 个星系，显示 {len(rows)} 个；{state}。航母数量未知 {info['unknown']} 个。")
                         button["state"] = "normal"
 
                     self._post(win, show)
@@ -1583,7 +1632,7 @@ class App:
         ttk.Button(controls, text="停止", command=stop.set).pack(side="left")
         ttk.Button(controls, text="导出 CSV", command=export_rows).pack(side="left", padx=6)
         self.bind_tool_state("carrier_parking", win, dict(reference=reference, radius=radius,
-                             pages=pages, candidates_only=candidates, exclude_permit=no_permit))
+                             pages=pages, min_carriers=minimum, max_carriers=maximum, exclude_permit=no_permit))
         def close():
             stop.set()
             win.destroy()
@@ -1693,7 +1742,7 @@ class App:
                 w.writerow([r.get("name"), r.get("system_name") or r.get("name"),
                             f"{r.get('type', '')} {r.get('primary_economy', '')}",
                             json.dumps(r.get("_distances", {}), ensure_ascii=False),
-                            json.dumps(r, ensure_ascii=False)[:8000]])
+                             json.dumps(r, ensure_ascii=False)])
         self.status.set(f"已导出 {p}")
 
 

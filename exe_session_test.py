@@ -15,7 +15,7 @@ TOOLS = {
     "rare_goods": dict(reference="Leesti", minimum="205", maximum="219", pages="9",
                        query="Azure", power="Yuri Grom", all_powers=True),
     "carrier_parking": dict(reference="Lave", radius="45", pages="7",
-                            candidates_only=False, exclude_permit=False),
+                            min_carriers="0", max_carriers="17", exclude_permit=False),
     "midpoint": dict(a="Sol", b="Ngurii", want="15", populated_only=True, exclude_permit=True),
     "pve": dict(reference="Sol", radius="0", min_factions="8", min_federation="2", min_empire="1",
                 source_faction="Mother Gaia", source_controller="Mother Gaia", target_controller="Test Pirates",

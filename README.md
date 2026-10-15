@@ -2,17 +2,19 @@
 
 [English](README.md) · [简体中文](README_zh-CN.md) · [Releases](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
 
+[Detailed search logic and tool rules](README_search_logic.md)
+
 An Elite Dangerous system and station filtering desktop tool powered by [Spansh](https://spansh.co.uk/), built with Python / tkinter and an instantly switchable Chinese / English UI.
 
 **Positioning: it may not be more convenient than Inara, but offers broader, more flexible, freely combinable filters.** It complements common lookups with more complex queries.
 
 Repository: [kxdxzr/Elite_dangerous_Filter](https://github.com/kxdxzr/Elite_dangerous_Filter). Developed by **GPT-6.1 Sol** through **vibe coding**, with ongoing user-driven iteration.
 
-> **v0.1.1: the pirate massacre finder is still being tested.** It returns candidate source/target pairs, not guaranteed live missions, issuer counts or RES availability. Inferred ring-based RES and explicit site records are labelled separately. Verify results in game.
+> **v0.1.2: the colonisation candidate finder is released; the pirate massacre finder is still being tested.** Pirate results are candidate source/target pairs, not guaranteed live missions, issuer counts or RES availability. Inferred ring-based RES and explicit site records are labelled separately. Verify results in game.
 
 ## Download and run
 
-[**Download Windows EXE**](https://github.com/kxdxzr/Elite_dangerous_Filter/releases/download/v0.1.1/EliteDangerousFilter.exe) · [v0.1.1 release notes](docs/releases/v0.1.1.md) · [All releases](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
+[**Download Windows EXE**](https://github.com/kxdxzr/Elite_dangerous_Filter/releases/download/v0.1.2/EliteDangerousFilter.exe) · [v0.1.2 release notes](docs/releases/v0.1.2.md) · [All releases](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
 
 Run `EliteDangerousFilter.exe` on 64-bit Windows; no Python installation is needed. Searches require an internet connection, but no API key.
 
@@ -30,12 +32,14 @@ Select **中文 / English** on the main window to switch all tool windows immedi
 
 ## Features
 
+- **Colonisation candidate finder (new in v0.1.2):** zero-population, station-free, permit-free systems. Independent optional regional radius and nearest-populated distance bounds, plus optional system value; editable planet and independent ring groups (all/any), moon relationships and inferred binary membership. See the [v0.1.2 release notes](docs/releases/v0.1.2.md).
+- **Main-window extensions in v0.1.2:** local station/carrier/faction counts in system field rows, plus **Planet / nearest-populated conditions** for nested planet/ring groups and verified nearest-distance bounds with an editable population threshold. These combine with ordinary conditions without imposing colonisation restrictions; see [detailed rules](README_search_logic.md).
 - **General filters:** systems/stations, repeated conditions, OR within a multi-select row and AND between rows.
 - **Distances and modules:** multiple reference points, distance intersections/outside ranges, same-item module class/rating matching, and shipyard/outfitting freshness filters.
-- **Carrier parking estimates:** up to 50 ly; station totals include carriers. Fewer than 10 suggests likely parking near the main star, 10–19 suggests likely parking. This is not a live vacancy API.
+- **Carrier parking finder:** up to 50 ly; use carrier station types catalogued by Spansh to find parking candidates, with optional inclusive minimum/maximum carrier counts. Incomplete types remain Unknown; counts are not live vacancies.
 - **Rare goods target finder:** 142 source entries across 138 systems, default Ngurii and a 200–220 ly target range. Select an associated Power or scan all 12. Requires large pads; excludes planetary stations, carriers and colonisation ships. Each Power starts at ≤100 Ls and expands to ≤1000 Ls only after a complete search finds no matches. Shows up to five targets per Power, ordered by ly then Ls.
 - **Pirate massacre candidates (testing):** EDTools source/target pairs and site records, with Spansh faction, issuer-count, controlling Power, source-station and target-ring filters.
-- **Utilities:** system midpoint, cancellation, diagnostics, CSV export, condition files and session restoration for the main window and all four tools.
+- **Utilities:** system midpoint, cancellation, diagnostics, CSV export, condition files and session restoration for the main window and all five tools.
 
 ## Pirate massacre finder (testing)
 
@@ -63,11 +67,11 @@ Open **Extra tools → Pirate massacre finder**. All enabled filters are AND:
 - Controller/Power filters are batched and their detail records reused; Power uses gzip and at most four concurrent pages. Ring distances come from batched full-body records, not summaries that omit rings. Throttled progress and 200-row rendering batches preserve the full query/export results.
 - EDTools cache TTL is one hour; Spansh details/controller lists/ring distances use five minutes. **Refresh data and search** switches to online data and forces refresh, without silently substituting expired data on failure. Target Power combined with source constraints may still require additional source detail lookups.
 
-Measured locally for `Sol / unlimited / minimum 3 factions / Yuri Grom / source`: about 15.37 seconds for forced refresh and 0.19 seconds for the immediately repeated cached search, with identical results. Network conditions and changing data affect timings. Detailed rules and examples are in the [Chinese search-logic document](README_检索逻辑.md).
+Measured locally for `Sol / unlimited / minimum 3 factions / Yuri Grom / source`: about 15.37 seconds for forced refresh and 0.19 seconds for the immediately repeated cached search, with identical results. Network conditions and changing data affect timings. Detailed rules and examples are in the [search-logic document](README_search_logic.md).
 
 ## Sessions, data and limitations
 
-- Changes auto-save every 1.5 seconds and on window close. Old sessions remain compatible; incomplete main-condition drafts, language and all four tool settings are preserved. Writes are atomic; failed close-time saves display an error and keep the window open.
+- Changes auto-save every 1.5 seconds and on window close. Old sessions remain compatible; incomplete main-condition drafts, language and all five tool settings are preserved. Writes are atomic; failed close-time saves display an error and keep the window open.
 - EXE data lives in `%LOCALAPPDATA%\EliteDangerousFilter\`; source execution defaults to the project directory. Override with `ELITE_FILTER_DATA_DIR`. Personal sessions, field/module caches, `pve_cache_*.json` and CSV exports are excluded from Git.
 - Third-party records are not live missions, stock or vacancies. Faction counts only estimate potential issuers; verify BGS state, reputation and mission availability in game.
 - Rare goods searches use associated Power. Spansh `Unoccupied` currently approximates Inara's Unoccupied / Expansion / Contested group; that mapping is unverified and the latter two cannot be filtered separately.
@@ -82,15 +86,15 @@ python -m pip install -r requirements-build.txt
 python -m PyInstaller --noconfirm --clean EliteDangerousFilter.spec
 ```
 
-145 tests cover the engine, sessions, localization, PvE conditions/data integrity/cache/concurrency and real GUI interactions. Tk tests require a graphical display and are skipped on headless Linux. GitHub Actions tests Windows / Ubuntu with Python 3.10 / 3.13.
+Automated tests cover the engine, sessions, localization, PvE and colonisation conditions/data integrity/cache/concurrency and real GUI interactions. Tk tests require a graphical display and are skipped on headless Linux. GitHub Actions tests Windows / Ubuntu with Python 3.10 / 3.13.
 
-Build output: `dist/EliteDangerousFilter.exe`. Use `--smoke-test <report.json>` to verify four tool windows and both languages. Run `--session-test write <report.json>` and `--session-test read <another-report.json>` in separate processes to verify restoration. Session tests require an isolated `ELITE_FILTER_DATA_DIR`; report directories must already exist.
+Build output: `dist/EliteDangerousFilter.exe`. Use `--smoke-test <report.json>` to verify five tool windows and both languages. Run `--session-test write <report.json>` and `--session-test read <another-report.json>` in separate processes to verify restoration. Session tests require an isolated `ELITE_FILTER_DATA_DIR`; report directories must already exist.
 
 CLI entry point: `python spansh_filter.py --help`. Main modules: `filter_gui.py` / `filter_engine.py`, `powerplay_gui.py` / `powerplay_tool.py`, `pve_gui.py` / `pve_tool.py`, `pve_access.py` / `pve_cache.py`, `i18n.py` / `localized_tk.py` and `faction_options.py`.
 
 ## Screenshots
 
-These English-interface screenshots cover the main window and all four tools. They show real GUI queries captured on 2026-10-14; results change with upstream data. For Chinese-interface screenshots, see the [Chinese README](README_zh-CN.md#截图).
+These English-interface screenshots show the v0.1.1 main window and four original tools, captured on 2026-10-14. They do not yet show the new colonisation tool or updated carrier filters in v0.1.2; results change with upstream data. For Chinese-interface screenshots, see the [Chinese README](README_zh-CN.md#截图).
 
 ### Main window
 
@@ -114,7 +118,7 @@ The same query after switching to English. The table is scrolled right to show t
 
 ### Carrier parking finder
 
-Sol within 15 ly, with station/carrier counts and parking estimates. These are recorded-data estimates, not live vacancies.
+Historical v0.1.1 screenshot: Sol within 15 ly, with station/carrier counts and the old parking estimates. v0.1.2 replaces those estimates with carrier-count bounds, retaining the tool name. Neither version reports live vacancies.
 
 ![Carrier parking finder in English](docs/images/carrier-parking-finder-en.png)
 

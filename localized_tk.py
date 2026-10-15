@@ -127,7 +127,8 @@ class Treeview(base.Treeview):
 
     def _display_values(self, values):
         identifiers = {'name', 'source', 'target', 'system', 'station', 'power',
-                       'source_controller', 'target_controller', 'source_power', 'target_power'}
+                       'source_controller', 'target_controller', 'source_power', 'target_power',
+                       'neighbour', 'body_matches', 'ring_matches', 'relations'}
         columns = self.cget('columns')
         return [value if index < len(columns) and columns[index] in identifiers else self._manager.tr(value)
                 for index, value in enumerate(values)]

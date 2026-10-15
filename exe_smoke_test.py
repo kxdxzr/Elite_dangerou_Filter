@@ -39,7 +39,21 @@ def run(gui, report_path):
         app.midpoint_window()
         pve = app.pve_window()
         assert pve.title() == "海盗任务查找器"
+        colony = app.colonisation_window()
+        colony.group_editors['body_groups'].add_group([
+            {'field': '_is_binary', 'op': '=', 'value': 'true'}])
+        assert colony.criteria().body_groups[0][0]['field'] == '_is_binary'
         app.set_language("en")
+        assert colony.title() == "Colonisation candidate finder"
+        from main_system_gui import DetailsRow
+        app.kind.set('systems')
+        detailed_row = DetailsRow(app.inner, 'systems')
+        app.rows.append(detailed_row)
+        detailed_row.apply_condition(dict(nearest_max=10, population_min=1))
+        detailed_editor = detailed_row.open_editor()
+        assert detailed_editor.title() == 'Main-window system details'
+        assert detailed_row.to_cond()['nearest_max'] == 10
+        detailed_editor.destroy()
         assert pve.title() == "Pirate massacre finder"
         assert window.title() == "Rare goods target finder"
         end = time.monotonic() + 0.3
