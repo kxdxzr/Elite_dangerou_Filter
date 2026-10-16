@@ -40,6 +40,9 @@ def run(gui, report_path):
         pve = app.pve_window()
         assert pve.title() == "海盗任务查找器"
         colony = app.colonisation_window()
+        route = app.route_window()
+        assert route.title() == '中子星跳跃规划器'
+        assert route.route_state['points'] == []
         assert 'population' not in colony.result_tree['columns']
         assert all(key in colony.result_tree['columns'] for key in ('scan1', 'scan2', 'scan3', 'neighbour_pad'))
         assert 'max_pages' not in colony.session_variables
@@ -51,6 +54,7 @@ def run(gui, report_path):
             {'field': '_is_binary', 'op': '=', 'value': 'true'}])
         assert colony.criteria().body_groups[0][0]['field'] == '_is_binary'
         app.set_language("en")
+        assert route.title() == 'Neutron jump planner'
         assert colony.title() == "Colonisation candidate finder"
         from main_system_gui import DetailsRow
         app.kind.set('systems')

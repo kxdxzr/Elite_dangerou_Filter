@@ -128,7 +128,7 @@ class PveParserTests(unittest.TestCase):
         self.assertIn('s=Sol', caught.exception.url)
         self.assertIn('import', str(caught.exception))
     def test_public_sol_sample_and_imported_search_without_network(self):
-        html = (Path(__file__).parent / 'docs' / 'edtools-sol-30-sample.html').read_text(encoding='utf-8')
+        html = (Path(__file__).resolve().parents[1] / 'docs' / 'edtools-sol-30-sample.html').read_text(encoding='utf-8')
         parsed = pve.parse_page(html)
         self.assertEqual(len(parsed['rows']), 8)
         resolver, loader = Mock(), Mock()

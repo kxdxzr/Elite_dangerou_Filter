@@ -11,7 +11,12 @@ venv/
 env/
 
 # Personal session and runtime caches
+/data/
+/cache/
+/pve-validation/
 /last_session.json
+/route_ship_favorites.json
+/route_module_cache.json
 /field_values_cache.json
 /pve_cache_*.json
 /module_specs_cache.json

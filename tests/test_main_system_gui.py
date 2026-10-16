@@ -10,6 +10,42 @@ from unittest.mock import patch
 
 @unittest.skipUnless(sys.platform == 'win32' or os.environ.get('DISPLAY'), 'Requires a GUI display')
 class MainSystemGuiTests(unittest.TestCase):
+    def test_visible_copy_actions_across_result_windows(self):
+        def descendants(widget):
+            for child in widget.winfo_children():
+                yield child
+                yield from descendants(child)
+
+        self.app.results = [dict(name='Station One', system_name='Sol')]
+        item = self.app.tree.insert('', 'end', values=('Station One', 'Sol', '', ''))
+        self.app.tree.selection_set(item)
+        buttons = {getattr(w, '_raw_text', ''): w for w in descendants(self.root)
+                   if isinstance(w, self.gui.ttk.Button)}
+        buttons['复制名称'].invoke()
+        self.assertEqual(self.root.clipboard_get(), 'Station One')
+        buttons['复制星系名'].invoke()
+        self.assertEqual(self.root.clipboard_get(), 'Sol')
+
+        for open_tool, title, expected in (
+            (self.app.carrier_parking_window, '航母车位查找', {'复制星系名': 'name'}),
+            (self.app.midpoint_window, '两系中点 - 离中点最近的星系', {'复制星系名': 'name'}),
+            (self.app.rare_goods_window, '稀有商品目标查找器', {'复制星系名': 'system', '复制空间站名': 'station'}),
+            (self.app.pve_window, '海盗任务查找器', {'复制目标星系': 'target', '复制任务来源星系': 'source', '复制来源空间站': 'source_station'}),
+        ):
+            open_tool()
+            win = next(w for w in self.root.winfo_children() if getattr(w, '_raw_title', '') == title)
+            widgets = list(descendants(win))
+            tree = next(w for w in widgets if isinstance(w, self.gui.ttk.Treeview)
+                        and set(expected.values()).issubset(w['columns']))
+            values = [f'Original {key}' for key in tree['columns']]
+            item = tree.insert('', 'end', values=values)
+            tree.selection_set(item)
+            buttons = {getattr(w, '_raw_text', ''): w for w in widgets if isinstance(w, self.gui.ttk.Button)}
+            for label, key in expected.items():
+                buttons[label].invoke()
+                self.assertEqual(win.clipboard_get(), f'Original {key}')
+            win.destroy()
+
     def setUp(self):
         from test_colonisation_gui import ColonisationGuiTests
         ColonisationGuiTests.setUp(self)

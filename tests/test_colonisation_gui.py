@@ -102,8 +102,12 @@ class ColonisationGuiTests(unittest.TestCase):
         query.assert_called_once()
         self.assertFalse(win.search_state['busy'])
         self.assertEqual(len(win.result_tree.get_children()), 1)
-        self.assertEqual(win.result_tree.item('0', 'values')[1:6],
-                         ('1,234,567', '1,234.57', 'Neighbour', '4.42', 'L'))
+        self.assertEqual(tuple(win.result_tree['columns']),
+                         ('name', 'scan1', 'scan2', 'scan3', 'neighbour', 'near_distance',
+                          'neighbour_pad', 'distance', 'value', 'body_matches', 'ring_matches',
+                          'relations', 'scan_status', 'updated'))
+        self.assertEqual(win.result_tree.item('0', 'values')[4:9],
+                         ('Neighbour', '4.42', 'L', '1,234.57', '1,234,567'))
         self.assertNotIn('population', win.result_tree['columns'])
         self.assertEqual(win.result_tree.heading('neighbour', 'text'), '最近有人星系')
         self.assertIn('Candidate 1 | Water world | 55,000 Cr', win.result_tree.item('0', 'values'))
@@ -122,7 +126,7 @@ class ColonisationGuiTests(unittest.TestCase):
                 patch('builtins.open', output):
             next(b for b in buttons if b._raw_text == '导出CSV').invoke()
         written = ''.join(c.args[0] for c in output().write.call_args_list)
-        self.assertIn('scan1,scan2,scan3,scan_status', written)
+        self.assertTrue(written.startswith('name,scan1,scan2,scan3,neighbour,near_distance,neighbour_pad,distance,estimated_mapping_value,'))
         self.assertNotIn(',population,', written)
         self.assertIn('near_distance,neighbour_pad', written)
         self.assertIn('55,000 Cr', written)

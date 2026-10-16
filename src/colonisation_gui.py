@@ -191,14 +191,14 @@ def open_window(app):
     tracker = SearchProgress(bar, progress_text, app.localizer)
     frame = ttk.Frame(win)
     frame.pack(fill='both', expand=True, padx=8)
-    columns = [('name', '候选星系'), ('value', '星系价值'), ('distance', '区域距离 ly'),
-                ('neighbour', '最近有人星系'), ('near_distance', '最近有人星系距离 ly'),
-                ('neighbour_pad', '最近有人星系最大停机坪'),
-               ('body_matches', '匹配星球（按组）'), ('ring_matches', '匹配星环（按组）'),
-                ('relations', '天体关系（推定）'),
-                ('scan1', '扫描价值第1（星球／类型／Cr）'),
+    columns = [('name', '候选星系'), ('scan1', '扫描价值第1（星球／类型／Cr）'),
                 ('scan2', '扫描价值第2（星球／类型／Cr）'),
                 ('scan3', '扫描价值第3（星球／类型／Cr）'),
+                ('neighbour', '最近有人星系'), ('near_distance', '最近有人星系距离 ly'),
+                ('neighbour_pad', '最近有人星系最大停机坪'),
+                ('distance', '区域距离 ly'), ('value', '星系价值'),
+                ('body_matches', '匹配星球（按组）'), ('ring_matches', '匹配星环（按组）'),
+                ('relations', '天体关系（推定）'),
                 ('scan_status', '扫描价值数据完整性'), ('updated', '记录更新时间')]
     tree = ttk.Treeview(frame, columns=[key for key, _ in columns], show='headings')
     for key, title in columns:
@@ -260,10 +260,12 @@ def open_window(app):
         top = [f"{b['name']} | {b['subtype']} | {b['estimated_scan_value']:,.0f} Cr" for b in prices]
         complete = row.get('_top_scan_complete', False)
         top += [app.localizer.tr('无更多星球' if complete else '情况未知')] * (3 - len(top))
-        return (row['name'], format_number(row.get(state['info']['value_field']), app.localizer.tr('情况未知')), format_ly(row.get('distance')),
+        return (row['name'], *top,
                 row['_neighbour'], format_ly(row['_neighbour_distance']),
                 app.localizer.tr(row.get('_neighbour_pad', '情况未知') if row['_neighbour'] else ''),
-                row['_body_matches'], row['_ring_matches'], row['_relations'], *top,
+                format_ly(row.get('distance')),
+                format_number(row.get(state['info']['value_field']), app.localizer.tr('情况未知')),
+                row['_body_matches'], row['_ring_matches'], row['_relations'],
                 app.localizer.tr('已记录天体完整' if complete else '数据不完整，仅列已知估值'),
                 row.get('updated_at', ''))
 
@@ -295,14 +297,8 @@ def open_window(app):
         threading.Thread(target=worker, daemon=True).start()
 
     def copy(key='name'):
-        selected = tree.selection()
-        if selected:
-            name = state['rows'][int(selected[0])].get(key, '')
-            if not name:
-                messagebox.showinfo('提示', '暂无最近有人星系信息', parent=win)
-                return
-            win.clipboard_clear()
-            win.clipboard_append(name)
+        from result_copy import copy_result
+        return copy_result(win, tree, getter=lambda item: state['rows'][int(item)].get(key, ''))
 
     def export():
         if not state['info']:

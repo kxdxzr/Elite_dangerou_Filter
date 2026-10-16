@@ -1,6 +1,6 @@
 # GUI 检索逻辑
 
-[English](README_search_logic.md) · [简体中文](README_检索逻辑.md) · [项目主页](README_zh-CN.md)
+[English](README_search_logic.md) · [简体中文](README_检索逻辑.md) · [项目主页](../README_zh-CN.md)
 
 启动：`python filter_gui.py`。
 

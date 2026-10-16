@@ -2,7 +2,7 @@
 
 [English](README.md) · [简体中文](README_zh-CN.md) · [Releases](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
 
-[Detailed search logic and tool rules](README_search_logic.md)
+[Detailed search logic and tool rules](docs/README_search_logic.md)
 
 An Elite Dangerous system and station filtering desktop tool powered by [Spansh](https://spansh.co.uk/), built with Python / tkinter and an instantly switchable Chinese / English UI.
 
@@ -33,7 +33,7 @@ Select **中文 / English** on the main window to switch all tool windows immedi
 ## Features
 
 - **Colonisation candidate finder (new in v0.1.2):** zero-population, station-free, permit-free systems. Independent optional regional radius and nearest-populated distance bounds, plus optional system value; editable planet and independent ring groups (all/any), moon relationships and inferred binary membership. See the [v0.1.2 release notes](docs/releases/v0.1.2.md).
-- **Main-window extensions in v0.1.2:** local station/carrier/faction counts in system field rows, plus **Planet / nearest-populated conditions** for nested planet/ring groups and verified nearest-distance bounds with an editable population threshold. These combine with ordinary conditions without imposing colonisation restrictions; see [detailed rules](README_search_logic.md).
+- **Main-window extensions in v0.1.2:** local station/carrier/faction counts in system field rows, plus **Planet / nearest-populated conditions** for nested planet/ring groups and verified nearest-distance bounds with an editable population threshold. These combine with ordinary conditions without imposing colonisation restrictions; see [detailed rules](docs/README_search_logic.md).
 - **General filters:** systems/stations, repeated conditions, OR within a multi-select row and AND between rows.
 - **Distances and modules:** multiple reference points, distance intersections/outside ranges, same-item module class/rating matching, and shipyard/outfitting freshness filters.
 - **Carrier parking finder:** up to 50 ly; use carrier station types catalogued by Spansh to find parking candidates, with optional inclusive minimum/maximum carrier counts. Incomplete types remain Unknown; counts are not live vacancies.
@@ -76,7 +76,7 @@ Switch the main search type to **systems**:
 
 The tool keeps its name. Enter optional **Min carriers / Max carriers** to filter nearby systems using inclusive bounds; blank means unrestricted and maximum **0** selects records with a confirmed zero count. Carrier types are counted from Spansh records rather than inferred from total station counts. Unknown counts do not pass an enabled count bound. These are not live parking vacancies.
 
-See [detailed rules](README_search_logic.md) and the [v0.1.2 release notes](docs/releases/v0.1.2.md). The screenshot gallery below is still from v0.1.1 and does not illustrate these additions.
+See [detailed rules](docs/README_search_logic.md) and the [v0.1.2 release notes](docs/releases/v0.1.2.md). The screenshot gallery below is still from v0.1.1 and does not illustrate these additions.
 
 **Updated v0.1.2 formatting:** ly distances across the main results and all tools use exactly two decimal places; population uses integers, and large numeric results use comma grouping (for example `1,234.50 ly`, population `1,234,567`, value `55,000 Cr`). Human-readable CSV columns and CLI text follow the same convention. Filter inputs, calculations, IDs and raw JSON remain unchanged; the main CSV's `distances_json` uses formatted strings while `raw_json` retains the original values.
 
@@ -89,6 +89,20 @@ Arrival distances in Ls also use exactly two decimal places throughout result ta
 **Updated v0.1.2 progress:** main search and all tools show measured stage counts and percentages when a denominator is known (candidate checks, station checks, body/ring batches or requested midpoint results). Percentages describe the labelled stage, not an estimated end-to-end duration. Network preparation and capped/unknown totals remain explicitly indeterminate with known counts; page budgets are not presented as a whole-database total. Stopped, failed or incomplete searches are distinguished from completed searches.
 
 The updated rare-goods detail table and CSV omit the redundant **Range** column. The 100 Ls / 1000 Ls fallback rule is unchanged. Re-download the asset from the existing v0.1.2 release to obtain these updates; no new version is created.
+
+**Further local source changes (not yet in the downloadable EXE):** colonisation columns/CSV now start with candidate name → top-three scan-value planets → nearest populated system → nearest distance → maximum pad → other information. Visible copy buttons cover the main result name/system, carrier and midpoint systems, rare-goods system/station, pirate source/target/source station, and colonisation candidate/nearest system. Select a result first; absent selection or empty fields show a prompt without clearing the clipboard. Existing double-click shortcuts are retained (and added for midpoint results).
+
+## Neutron jump planner (local source addition)
+
+Open **Neutron jump planner** on the main window. Neutron supercharging is enabled by default. It uses Spansh's exact-plotter backend for ship-specific fuel and refuelling calculations, not the simpler fixed-range neutron router. This new sixth tool is not yet included in the downloadable v0.1.2 EXE.
+
+- **Ship build favourites:** paste/import one Coriolis JSON or EDSY SLEF export, name it, then select, edit, rename or delete it locally. No route-favourites library or account system. Favourites use atomic writes to `route_ship_favorites.json` in the application's data directory and are excluded from Git.
+- **Online calculation:** the selected build and route points are sent to Spansh. The first parse downloads a pinned EDCD/coriolis-data FSD catalogue and caches it locally. Unsupported drive/ship data is rejected rather than guessed; EDSY SLEF is preferred for unusual builds.
+- **Ordered waypoints:** add, remove and move points up/down. Every leg independently assumes a **full main tank at departure**, without inherited fuel or supercharge state. The already-supercharged option applies only to leg one. Multi-leg submissions require confirmation; waypoints do **not** guarantee refuelling.
+- **Results / CSV:** system, leg, ly distances, fuel, refuelling/neutron/injection flags and waypoints. Shared endpoints are merged, but prior arrival fuel and next assumed departure fuel are separate. Every leg start carries a full-tank warning. Copy selected system names or export CSV; partial exports require confirmation and retain explicit incomplete status.
+- **Progress / stop:** report completed legs, not invented server calculation percentages. Cancellation stops polling and future submissions, not necessarily the server's existing job. Only validated completed legs are retained; failed/timed-out jobs are not automatically resubmitted.
+
+See [routing details and limitations](docs/route-planner.md#english). This is an independent local UI, not browser automation or copied website graphics.
 
 ## Pirate massacre finder (testing)
 
@@ -116,12 +130,12 @@ Open **Extra tools → Pirate massacre finder**. All enabled filters are AND:
 - Controller/Power filters are batched and their detail records reused; Power uses gzip and at most four concurrent pages. Ring distances come from batched full-body records, not summaries that omit rings. Throttled progress and 200-row rendering batches preserve the full query/export results.
 - EDTools cache TTL is one hour; Spansh details/controller lists/ring distances use five minutes. **Refresh data and search** switches to online data and forces refresh, without silently substituting expired data on failure. Target Power combined with source constraints may still require additional source detail lookups.
 
-Measured locally for `Sol / unlimited / minimum 3 factions / Yuri Grom / source`: about 15.37 seconds for forced refresh and 0.19 seconds for the immediately repeated cached search, with identical results. Network conditions and changing data affect timings. Detailed rules and examples are in the [search-logic document](README_search_logic.md).
+Measured locally for `Sol / unlimited / minimum 3 factions / Yuri Grom / source`: about 15.37 seconds for forced refresh and 0.19 seconds for the immediately repeated cached search, with identical results. Network conditions and changing data affect timings. Detailed rules and examples are in the [search-logic document](docs/README_search_logic.md).
 
 ## Sessions, data and limitations
 
 - Changes auto-save every 1.5 seconds and on window close. Old sessions remain compatible; incomplete main-condition drafts, language and all five tool settings are preserved. Writes are atomic; failed close-time saves display an error and keep the window open.
-- EXE data lives in `%LOCALAPPDATA%\EliteDangerousFilter\`; source execution defaults to the project directory. Override with `ELITE_FILTER_DATA_DIR`. Personal sessions, field/module caches, `pve_cache_*.json` and CSV exports are excluded from Git.
+- EXE data remains in `%LOCALAPPDATA%\EliteDangerousFilter\`. Source runs store sessions/build favourites in `data/` and runtime caches in `cache/`. `ELITE_FILTER_DATA_DIR` still overrides both with one isolated directory. Legacy root files migrate on access; use `python scripts/migrate_data.py` to migrate all known runtime files. Existing destination files are never overwritten; conflicts retain both copies. Personal data, caches and CSV exports are excluded from Git.
 - Third-party records are not live missions, stock or vacancies. Faction counts only estimate potential issuers; verify BGS state, reputation and mission availability in game.
 - Rare goods searches use associated Power. Spansh `Unoccupied` currently approximates Inara's Unoccupied / Expansion / Contested group; that mapping is unverified and the latter two cannot be filtered separately.
 - Server counts may be capped. Page limits, repeated pages, missing required fields, request failures and cancellation distinguish incomplete searches from confirmed empty results.
@@ -129,17 +143,17 @@ Measured locally for `Sol / unlimited / minimum 3 factions / Yuri Grom / source`
 ## Development and verification
 
 ```sh
-python -m unittest discover -v
-python -m compileall -q .
+python scripts/run_tests.py
+python -m compileall -q src tests scripts filter_gui.py spansh_filter.py
 python -m pip install -r requirements-build.txt
 python -m PyInstaller --noconfirm --clean EliteDangerousFilter.spec
 ```
 
 Automated tests cover the engine, sessions, localization, PvE and colonisation conditions/data integrity/cache/concurrency and real GUI interactions. Tk tests require a graphical display and are skipped on headless Linux. GitHub Actions tests Windows / Ubuntu with Python 3.10 / 3.13.
 
-Build output: `dist/EliteDangerousFilter.exe`. Use `--smoke-test <report.json>` to verify five tool windows and both languages. Run `--session-test write <report.json>` and `--session-test read <another-report.json>` in separate processes to verify restoration. Session tests require an isolated `ELITE_FILTER_DATA_DIR`; report directories must already exist.
+Build output: `dist/EliteDangerousFilter.exe`. Use `--smoke-test <report.json>` to verify six tool windows and both languages. Run `--session-test write <report.json>` and `--session-test read <another-report.json>` in separate processes to verify restoration. Session tests require an isolated `ELITE_FILTER_DATA_DIR`; report directories must already exist.
 
-CLI entry point: `python spansh_filter.py --help`. Main modules: `filter_gui.py` / `filter_engine.py`, `powerplay_gui.py` / `powerplay_tool.py`, `pve_gui.py` / `pve_tool.py`, `pve_access.py` / `pve_cache.py`, `i18n.py` / `localized_tk.py` and `faction_options.py`.
+CLI entry point: `python spansh_filter.py --help`. Root launchers retain the old commands; implementation modules live in `src/`. Tests are in `tests/`, runnable helpers in `scripts/`, sample filters in `examples/`, and detailed documentation/screenshots in `docs/`. Example: `python spansh_filter.py --kind stations --ref-system Sol --filters-file examples/ex_station_hitech.json`. Root-level `python -m unittest discover -v` also remains supported. Runtime EXE self-check modules stay in `src/` because the application loads them with `--smoke-test` / `--session-test`.
 
 ## Screenshots
 

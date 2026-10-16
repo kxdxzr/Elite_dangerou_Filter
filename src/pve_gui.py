@@ -1,6 +1,7 @@
 """PvE search GUI; all Tk work stays on the main thread."""
 import csv
 from result_format import format_ly, format_ls, format_number
+from result_copy import copy_result
 import threading
 import tkinter as tk
 import webbrowser
@@ -251,10 +252,7 @@ def open_window(app):
         copy_system(1)
 
     def copy_system(column):
-        selection = tree.selection()
-        if selection:
-            win.clipboard_clear()
-            win.clipboard_append(tree.item(selection[0], 'values')[column])
+        copy_result(win, tree, columns[column][0])
 
     tree.bind('<Double-1>', copy_target)
     search_button = ttk.Button(actions, text='开始查询', command=run)
@@ -270,6 +268,7 @@ def open_window(app):
     ttk.Button(footer, text='导出 CSV', command=export).pack(side='left')
     ttk.Button(footer, text='复制目标星系', command=copy_target).pack(side='left', padx=8)
     ttk.Button(footer, text='复制任务来源星系', command=lambda: copy_system(0)).pack(side='left', padx=8)
+    ttk.Button(footer, text='复制来源空间站', command=lambda: copy_result(win, tree, 'source_station')).pack(side='left', padx=8)
     refresh_button = ttk.Button(footer, text='刷新数据并查询', command=lambda: run(refresh=True))
     refresh_button.pack(side='left', padx=8)
     ttk.Button(footer, text='检索说明', command=lambda: messagebox.showinfo('检索说明',

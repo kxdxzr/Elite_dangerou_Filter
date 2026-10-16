@@ -2,7 +2,7 @@
 
 [English](README.md) · [简体中文](README_zh-CN.md) · [发行版本 / Releases](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
 
-[详细检索逻辑与工具规则](README_检索逻辑.md)
+[详细检索逻辑与工具规则](docs/README_检索逻辑.md)
 
 基于 [Spansh](https://spansh.co.uk/) 数据的 Elite Dangerous 星系与空间站筛选工具，使用 Python / tkinter，支持即时中英文切换。
 
@@ -33,7 +33,7 @@ python filter_gui.py
 ## 功能
 
 - **殖民候选星系查找器（v0.1.2 新增）**：强制零人口、无站点、无需许可。区域半径与距最近人口达标星系的距离上下限分别可选，星系价值也可选；支持星球与独立星环条件组（全部／任一存在）、卫星关系和互绕成员推定。详见 [v0.1.2 发布说明](docs/releases/v0.1.2.md)。
-- **v0.1.2 主界面扩展**：星系普通行新增站点／航母／派系数量；通过 **天体／最近有人条件** 添加嵌套星球／星环组及带可编辑人口门槛的最近距离范围。与普通条件组合，不附带殖民限制；详见 [详细规则](README_检索逻辑.md)。
+- **v0.1.2 主界面扩展**：星系普通行新增站点／航母／派系数量；通过 **天体／最近有人条件** 添加嵌套星球／星环组及带可编辑人口门槛的最近距离范围。与普通条件组合，不附带殖民限制；详见 [详细规则](docs/README_检索逻辑.md)。
 - **通用筛选**：星系／空间站查询，重复条件组合；同一行多选为 OR，不同行为 AND。
 - **距离与模块**：多参考点距离交集／范围外查询，同件模块等级／级别匹配，以及船厂／改装数据新鲜度条件。
 - **航母车位查找**：最多 50 ly，按 Spansh 已收录的航母站点类型直接计数来筛选停车候选星系，支持含边界的最少／最多航母数量筛选，类型数据不完整显示未知；数量不代表实时空位。
@@ -76,7 +76,7 @@ python filter_gui.py
 
 保留工具名称。新增可选的**最少／最多航母数**，包含边界；留空不限，最多填 **0** 筛选确认零航母的记录。按 Spansh 航母类型记录直接计数，不再按站点总数推测车位。数量未知不通过已启用的数量范围筛选；结果不代表实时空位。
 
-完整规则见 [检索逻辑](README_检索逻辑.md) 和 [v0.1.2 发布说明](docs/releases/v0.1.2.md)。下方截图仍为 v0.1.1，尚未展示这些新增功能。
+完整规则见 [检索逻辑](docs/README_检索逻辑.md) 和 [v0.1.2 发布说明](docs/releases/v0.1.2.md)。下方截图仍为 v0.1.1，尚未展示这些新增功能。
 
 **v0.1.2 更新版格式调整：** 主界面和所有工具的 ly 距离结果固定两位小数；人口显示整数，大数字每三位加逗号，例如 `1,234.50 ly`、人口 `1,234,567`、价值 `55,000 Cr`。可读 CSV 列和命令行文本同步使用此格式；筛选输入、内部计算、ID 和原始 JSON 不变。主界面 CSV 的 `distances_json` 使用格式化字符串，`raw_json` 保留原始值。
 
@@ -89,6 +89,20 @@ python filter_gui.py
 **v0.1.2 更新版进度调整：** 主界面及所有工具在总量已知时展示真实的阶段计数和百分比（候选核查、站点复核、天体／星环批次或中点目标结果数）。百分比仅对应标注的当前阶段，不是整体耗时预测。网络准备及封顶／未知总量明确显示总量未知和已处理数，不将页数预算当成全库总量；停止、失败、未完成与完成分别显示。
 
 稀有商品明细表与 CSV 已移除重复的**范围**列，100 Ls／1000 Ls 回退规则不变。以上更新沿用现有 v0.1.2，请重新下载该版本 EXE，不创建新版本。
+
+**后续本地源码调整（尚未包含在下载的 EXE）：** 殖民表格／CSV 调整为候选星系 → 扫描价值前三 → 最近有人星系 → 最近距离 → 最大停机坪 → 其他信息。各结果界面提供可见复制按钮：主界面的名称／星系，航母及中点星系，稀有商品星系／空间站，海盗来源／目标／来源站，殖民候选／最近有人星系。先选择结果；未选中或字段为空时提示，不清空原剪贴板。保留原有双击复制，并为中点结果添加双击复制。
+
+## 中子星跳跃规划器（本地源码新增）
+
+从主界面打开 **中子星跳跃规划器**，默认启用中子增压。使用 Spansh exact-plotter 后端按配船计算燃油与补油，不是简化的固定跳距中子路线接口。这是新增的第六个工具，尚未包含在下载的 v0.1.2 EXE 中。
+
+- **舰船配置收藏：** 粘贴／导入单个 Coriolis JSON 或 EDSY SLEF，命名后本地选择、编辑、重命名、删除。不增加航线收藏库或账号系统。以原子写入保存到程序数据目录的 `route_ship_favorites.json`，不上传 Git。
+- **联网计算：** 将选中的配船和航点发送至 Spansh。首次解析下载固定版本的 EDCD/coriolis-data FSD 数据并本地缓存；未知 FSD／舰船参数明确报错，不猜测。特殊配置优先使用 EDSY SLEF。
+- **有序途经点：** 支持添加、删除、上移、下移。每段按**起点主油箱满油**独立规划，不继承前段剩余燃油或增压状态；“第一段已增压”只用于首段。多段提交前必须确认，途经点**不保证能够补油**。
+- **结果／CSV：** 展示星系、分段、ly 距离、燃油、补油／中子／注入及途经点标记。合并共享端点，但分别保留前段到达剩余燃油、后段假定出发燃油；每段起点都标注满油提醒。可复制星系名、导出 CSV；部分结果需确认导出，并明确保留未完成状态。
+- **进度／停止：** 显示已完成分段，不伪造服务器计算百分比。停止后不再轮询或提交后段，不保证撤销服务器已有任务；仅保留已验证的完整前段，失败／超时不自动重提。
+
+完整说明见 [航线规则与限制](docs/route-planner.md#中文)。使用独立本地界面，不自动操作浏览器，也不复制网站图形。
 
 ## 海盗任务查找（测试中）
 
@@ -116,12 +130,12 @@ python filter_gui.py
 - 控制派系与 Power 批量预筛、详情复用；Power 使用 gzip 和最多 4 页并发。完整天体数据批量查询星环，避免用不含星环的摘要判定无环。进度节流、每批 200 行绘表，不截断实际结果。
 - EDTools 缓存 1 小时，Spansh 详情／控制列表／星环距离缓存 5 分钟。**刷新数据并查询** 切换在线并强制刷新所需数据；失败不静默使用过期缓存。目标 Power 叠加来源条件时仍可能需要补查来源详情。
 
-本机实测 `Sol / 无限 / 最少派系 3 / Yuri Grom / 来源`：强制刷新约 15.37 秒，紧接着缓存复查约 0.19 秒，结果一致。网络及数据变化会影响耗时，不能作为固定性能保证。完整规则和案例见 [检索逻辑](README_检索逻辑.md)。
+本机实测 `Sol / 无限 / 最少派系 3 / Yuri Grom / 来源`：强制刷新约 15.37 秒，紧接着缓存复查约 0.19 秒，结果一致。网络及数据变化会影响耗时，不能作为固定性能保证。完整规则和案例见 [检索逻辑](docs/README_检索逻辑.md)。
 
 ## 会话、数据与限制
 
 - 每 1.5 秒自动保存变更，关闭窗口时保存；兼容旧会话，保留未填完的主条件草稿、语言和五个工具参数。原子写入，关闭时保存失败会提示并保留窗口。
-- EXE 数据目录为 `%LOCALAPPDATA%\EliteDangerousFilter\`；源码默认使用项目目录，可通过 `ELITE_FILTER_DATA_DIR` 覆盖。`last_session.json`、候选／规格缓存、`pve_cache_*.json` 和导出的 CSV 均不上传仓库。
+- EXE 数据目录仍为 `%LOCALAPPDATA%\EliteDangerousFilter\`。源码运行将会话／舰船收藏保存到 `data/`，运行缓存保存到 `cache/`；`ELITE_FILTER_DATA_DIR` 仍可将两者统一覆盖到隔离目录。旧根目录文件在访问时迁移，也可用 `python scripts/migrate_data.py` 一次迁移全部已知运行文件；目标已存在时绝不覆盖，保留两份并报告冲突。个人数据、缓存和 CSV 均不上传仓库。
 - 数据不是实时任务、库存或空位。派系数量只估计潜在任务发布者，需要游戏内确认 BGS、声望和任务。
 - 稀有商品工具使用关联 Power，暂以 Spansh `Unoccupied` 作为 Inara Unoccupied / Expansion / Contested 的合并候选；对应关系尚未样本验证，不能分别筛选后两者。
 - 分页计数可能封顶；达到上限、重复页、缺关键数据、请求失败或停止时，明确区分未完成与无结果。
@@ -129,17 +143,17 @@ python filter_gui.py
 ## 开发与验证
 
 ```sh
-python -m unittest discover -v
-python -m compileall -q .
+python scripts/run_tests.py
+python -m compileall -q src tests scripts filter_gui.py spansh_filter.py
 python -m pip install -r requirements-build.txt
 python -m PyInstaller --noconfirm --clean EliteDangerousFilter.spec
 ```
 
 自动化测试覆盖引擎、会话、本地化、PvE 与殖民条件／数据完整性／缓存／并发及真实 GUI 操作。Tk 测试需要图形环境；Linux 无 DISPLAY 时跳过 GUI 测试。GitHub Actions 测试 Windows / Ubuntu、Python 3.10 / 3.13。
 
-构建输出 `dist/EliteDangerousFilter.exe`。隔离目录中使用 `--smoke-test <报告.json>` 验证五个工具窗口和中英文加载；分别运行 `--session-test write <报告.json>` 与 `--session-test read <另一报告.json>` 验证跨进程恢复。会话测试必须设置独立 `ELITE_FILTER_DATA_DIR`；报告目录须存在。
+构建输出 `dist/EliteDangerousFilter.exe`。隔离目录中使用 `--smoke-test <报告.json>` 验证六个工具窗口和中英文加载；分别运行 `--session-test write <报告.json>` 与 `--session-test read <另一报告.json>` 验证跨进程恢复。会话测试必须设置独立 `ELITE_FILTER_DATA_DIR`；报告目录须存在。
 
-CLI 示例：`python spansh_filter.py --help`；参数说明见 [筛选器说明](README_筛选器说明.txt)。主要模块：`filter_gui.py` / `filter_engine.py`、`powerplay_gui.py` / `powerplay_tool.py`、`pve_gui.py` / `pve_tool.py`、`pve_access.py` / `pve_cache.py`、`i18n.py` / `localized_tk.py`、`faction_options.py`。
+CLI 示例：`python spansh_filter.py --help`；参数说明见 [筛选器说明](docs/README_筛选器说明.txt)。根目录入口保留原启动命令，实际代码在 `src/`，测试在 `tests/`，辅助脚本在 `scripts/`，示例条件在 `examples/`，详细文档／截图在 `docs/`。例如：`python spansh_filter.py --kind stations --ref-system Sol --filters-file examples/ex_station_hitech.json`。根目录 `python -m unittest discover -v` 仍然有效。EXE 自检模块由程序通过 `--smoke-test`／`--session-test` 加载，因此保留在 `src/`。
 
 ## 截图
 

@@ -3,13 +3,14 @@ from pathlib import Path
 
 project = Path(SPECPATH)
 a = Analysis(
-    [str(project / "filter_gui.py")],
-    pathex=[str(project)],
+    [str(project / "src" / "filter_gui.py")],
+    pathex=[str(project / "src")],
     binaries=[],
     datas=[],
     hiddenimports=["powerplay_gui", "powerplay_tool", "rare_goods", "exe_smoke_test", "exe_session_test",
                    "pve_gui", "pve_tool", "pve_access", "pve_cache", "faction_options", "i18n", "localized_tk",
-                   "colonisation_gui", "colonisation_tool", "main_system_gui", "system_filters", "system_filter_fields"],
+                   "colonisation_gui", "colonisation_tool", "main_system_gui", "system_filters", "system_filter_fields",
+                   "route_gui", "route_tool", "route_ship", "result_copy", "result_format", "search_progress"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

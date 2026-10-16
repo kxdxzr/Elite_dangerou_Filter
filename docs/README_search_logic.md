@@ -1,6 +1,6 @@
 # GUI search logic
 
-[English](README_search_logic.md) · [简体中文](README_检索逻辑.md) · [Project README](README.md)
+[English](README_search_logic.md) · [简体中文](README_检索逻辑.md) · [Project README](../README.md)
 
 Start with `python filter_gui.py`.
 

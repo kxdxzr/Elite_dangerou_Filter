@@ -1,6 +1,6 @@
 Elite Dangerous 星系与空间站筛选器 - CLI 说明
 数据源：Spansh。当前接口无需 API key，实际查询需要网络连接。
-GUI 使用方法见 README.md，检索规则见 README_检索逻辑.md。
+GUI 使用方法见 ../README_zh-CN.md，检索规则见 README_检索逻辑.md。
 
 ================ 快速开始 ================
 在项目目录运行：
@@ -17,13 +17,13 @@ python spansh_filter.py --kind systems --field-values power
 
 ================ 常用例子 ================
 # 1. Sol附近 High Tech + 有市场 + 大垫 + 到站距离不超过5000 Ls
-python spansh_filter.py --kind stations --ref-system Sol --size 10 --filters-file ex_station_hitech.json
+python spansh_filter.py --kind stations --ref-system Sol --size 10 --filters-file examples/ex_station_hitech.json
 
 # 2. 联邦 + High Tech + 人口不少于1M + Sol附近500 ly内
-python spansh_filter.py --kind systems --ref-system Sol --size 10 --filters-file ex_system_fed.json
+python spansh_filter.py --kind systems --ref-system Sol --size 10 --filters-file examples/ex_system_fed.json
 
 # 3. 原始结果输出JSON，可自行指定导出文件名
-python spansh_filter.py --kind stations --ref-system Sol --size 50 --output json --filters-file ex_station_hitech.json
+python spansh_filter.py --kind stations --ref-system Sol --size 50 --output json --filters-file examples/ex_station_hitech.json
 
 CLI 仅请求一页；--page 从0开始。多页遍历、本地复核与条件矛盾检查请使用GUI或filter_engine.search。
 推荐用 --filters-file，避免 PowerShell、cmd 与其他终端的 JSON 引号转义差异。

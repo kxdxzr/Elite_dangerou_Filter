@@ -1,6 +1,7 @@
 """稀有商品目标查找器；后台仅使用普通Python数据，Tk更新交给App调度器。"""
 import csv
 from result_format import format_ls
+from result_copy import copy_result
 import threading
 import tkinter as tk
 from tkinter import filedialog
@@ -124,10 +125,7 @@ def open_window(app, data_age):
     summary.bind("<<TreeviewSelect>>", selected)
 
     def copy_system(event=None):
-        selection = tree.selection()
-        if selection:
-            win.clipboard_clear()
-            win.clipboard_append(tree.item(selection[0], "values")[1])
+        copy_result(win, tree, 'system')
 
     tree.bind("<Double-1>", copy_system)
 
@@ -216,6 +214,7 @@ def open_window(app, data_age):
     footer.pack(fill="x")
     ttk.Button(footer, text="全部组明细", command=show_details).pack(side="left")
     ttk.Button(footer, text="复制星系名", command=copy_system).pack(side="left", padx=6)
+    ttk.Button(footer, text='复制空间站名', command=lambda: copy_result(win, tree, 'station')).pack(side='left', padx=6)
     ttk.Button(footer, text="导出全部组 CSV", command=export).pack(side="left")
     ttk.Button(footer, text="检索说明", command=notes).pack(side="left", padx=6)
 
