@@ -14,6 +14,25 @@ import filter_gui as gui
 
 
 class TranslationTests(unittest.TestCase):
+    def test_shared_action_labels_are_translated(self):
+        for source, expected in (('查询', 'Search'), ('复制站名', 'Copy station name'), ('关闭', 'Close')):
+            self.assertEqual(i18n.translate(source, 'en'), expected)
+            self.assertEqual(i18n.translate(source, 'zh'), source)
+
+    def test_all_literal_button_and_section_labels_have_english_translations(self):
+        import ast
+        folder = Path(__file__).resolve().parents[1] / 'src'
+        for path in folder.glob('*.py'):
+            for node in ast.walk(ast.parse(path.read_text(encoding='utf-8-sig'))):
+                if not isinstance(node, ast.Call) or getattr(node.func, 'attr', '') not in (
+                        'Button', 'Checkbutton', 'Radiobutton', 'LabelFrame'):
+                    continue
+                for keyword in node.keywords:
+                    if keyword.arg == 'text' and isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
+                        text = keyword.value.value
+                        with self.subTest(file=path.name, line=node.lineno, text=text):
+                            self.assertFalse(re.search(r'[\u3400-\u9fff]', i18n.translate(text, 'en')))
+
     def test_pve_new_labels_and_progress_are_english(self):
         for text in ('RES（星环推定）', '情况未知', '刷新数据并查询',
                      '获取配对与地点数据（优先有效缓存）…',

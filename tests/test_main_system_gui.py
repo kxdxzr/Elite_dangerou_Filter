@@ -169,6 +169,33 @@ class MainSystemGuiTests(unittest.TestCase):
         self.assertEqual(self.root.clipboard_get(), 'System 2')
         self.assertEqual([r['name'] for r in self.app.results], ['Shop 10', 'Shop 2'])
 
+    def test_search_copy_and_close_buttons_follow_language_in_new_windows(self):
+        from main_system_gui import DetailsRow
+        self.app.set_language('en')
+        colony = self.app.colonisation_window()
+        shopping = self.app.engineer_shopping_window()
+        row = DetailsRow(self.app.inner, 'systems')
+        editor = row.open_editor()
+        def buttons(parent):
+            result = {}
+            for widget in parent.winfo_children():
+                if isinstance(widget, self.gui.ttk.Button):
+                    result[getattr(widget, '_raw_text', '')] = widget
+                result.update(buttons(widget))
+            return result
+        checks = [(buttons(colony)['查询'], '查询', 'Search'),
+                  (buttons(shopping)['查询'], '查询', 'Search'),
+                  (buttons(shopping)['复制站名'], '复制站名', 'Copy station name'),
+                  (buttons(editor)['关闭'], '关闭', 'Close')]
+        for widget, _, expected in checks:
+            self.assertEqual(widget.cget('text'), expected)
+        self.app.set_language('zh')
+        for widget, expected, _ in checks:
+            self.assertEqual(widget.cget('text'), expected)
+        self.app.set_language('en')
+        for widget, _, expected in checks:
+            self.assertEqual(widget.cget('text'), expected)
+
     def test_all_result_windows_have_sortable_headers_but_waypoint_editor_does_not(self):
         import route_tool
         with patch.object(self.gui.fo, 'get_options', return_value=[]), \

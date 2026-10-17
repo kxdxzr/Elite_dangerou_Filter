@@ -257,6 +257,8 @@ CLI 示例：`python spansh_filter.py --help`；参数说明见 [筛选器说明
 
 截图可在Windows使用可选开发依赖**Pillow 12**重拍：`python scripts/capture_screenshots.py`。脚本禁用网络、隔离会话，并在[screenshots.json](docs/images/screenshots.json)记录版本、尺寸及校验值；应用运行不需要Pillow。
 
+截图已包含`main`分支后续补齐的英文按钮翻译（Search／Copy station name／Close）；原v0.1.3发布EXE暂未替换为此修复。
+
 ## 数据来源
 
 - [Spansh](https://spansh.co.uk/)：星系、站点、派系及完整天体数据。

@@ -2,6 +2,7 @@
 import re
 
 CATALOG = {
+    '查询': 'Search', '复制站名': 'Copy station name', '关闭': 'Close',
     '是否打折': 'Discounted',
     '规格': 'Specification',
     '添加采购项': 'Add shopping item', '删除采购项': 'Remove shopping item',
