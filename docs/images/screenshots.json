@@ -1,0 +1,199 @@
+{
+  "version": "0.1.3",
+  "captured_at": "2026-10-17T22:45:26+11:00",
+  "data": "Offline illustrative fixtures; not live game records or verified routes.",
+  "screenshots": [
+    {
+      "file": "main-gui.png",
+      "language": "zh",
+      "title": "Elite 星系/空间站全条件筛选器",
+      "width": 2400,
+      "height": 920,
+      "sha256": "c8466e3559b476863c31e725322a1c1f26270b2543b44ab4970d56a4c071f9f7"
+    },
+    {
+      "file": "rare-goods-target-finder.png",
+      "language": "zh",
+      "title": "稀有商品目标查找器",
+      "width": 1540,
+      "height": 860,
+      "sha256": "a9858a00c78f8e4510691379bc6dd6e36a7a188a95084458580bbfdbb9809976"
+    },
+    {
+      "file": "pirate-massacre-finder-zh.png",
+      "language": "zh",
+      "title": "海盗任务查找器",
+      "width": 1540,
+      "height": 860,
+      "sha256": "dcc067a1c0b33c70bc0c07bb2d9bc984f81a8c6a1f6daaf5ddfb8f7339a52fa0"
+    },
+    {
+      "file": "pirate-massacre-finder-details-zh.png",
+      "language": "zh",
+      "title": "海盗任务查找器",
+      "width": 1540,
+      "height": 860,
+      "sha256": "e651c07e28507645e5f5855e804a354bd51fade486d98ce1872d4c3b1822e85a"
+    },
+    {
+      "file": "carrier-parking-finder.png",
+      "language": "zh",
+      "title": "航母车位查找",
+      "width": 1300,
+      "height": 690,
+      "sha256": "2ac9c9b6e3d716864ecaae76579e5f075c90bb0feaff226c32fac5e5f91eeeab"
+    },
+    {
+      "file": "system-midpoint-finder.png",
+      "language": "zh",
+      "title": "两系中点 - 离中点最近的星系",
+      "width": 1100,
+      "height": 650,
+      "sha256": "6fcb08c0ad3177f6ef2b13e600f9d92109649915e72a68fae6b5763f6ff66eb6"
+    },
+    {
+      "file": "colonisation-finder.png",
+      "language": "zh",
+      "title": "殖民候选星系查找器",
+      "width": 1700,
+      "height": 930,
+      "sha256": "b69f9de70a0ef89d1e4e93cb26cbab9bb1f116ed2ffd7dc5328186ee418027e1"
+    },
+    {
+      "file": "colonisation-finder-details.png",
+      "language": "zh",
+      "title": "殖民候选星系查找器",
+      "width": 1700,
+      "height": 930,
+      "sha256": "3ab4d322dcb74886dab1a7015de90e4ac70361361a6f28e1874e1ae663e922cc"
+    },
+    {
+      "file": "neutron-route-planner.png",
+      "language": "zh",
+      "title": "中子星跳跃规划器",
+      "width": 1600,
+      "height": 940,
+      "sha256": "8f06881cc6928684c762267fdd7ba0b31d7bac5579f0965b66ec3791825e1d3f"
+    },
+    {
+      "file": "engineer-shopping.png",
+      "language": "zh",
+      "title": "工程师途中采购",
+      "width": 1600,
+      "height": 930,
+      "sha256": "3aa07b76d766dbe4d746fad6b0b0ae4847b8edd4d324fa36a46852d9bc99df8f"
+    },
+    {
+      "file": "engineer-shopping-route-details.png",
+      "language": "zh",
+      "title": "工程师途中采购",
+      "width": 1600,
+      "height": 930,
+      "sha256": "6d2a1074c659b9222d4e76a40356a6f9372fa74dc3d86d5009b820e113dd1cbb"
+    },
+    {
+      "file": "main-gui-en.png",
+      "language": "en",
+      "title": "Elite Dangerous System / Station Filter",
+      "width": 2400,
+      "height": 920,
+      "sha256": "45ff162613ca287855b3cc0ac5c7234da59799bdd0cbb7eff93060226c80b7c5"
+    },
+    {
+      "file": "rare-goods-target-finder-en.png",
+      "language": "en",
+      "title": "Rare goods target finder",
+      "width": 1540,
+      "height": 860,
+      "sha256": "975c4129ce3f8a8e61d1ce9aaf417e6e376cddac735695a70473ed5b4d2077e1"
+    },
+    {
+      "file": "pirate-massacre-finder-summary-en.png",
+      "language": "en",
+      "title": "Pirate massacre finder",
+      "width": 1540,
+      "height": 860,
+      "sha256": "d66bf8c5f5f0de16f603062a2f77f560390e92ae0e253ca03b81d63c907d8b39"
+    },
+    {
+      "file": "pirate-massacre-finder-en.png",
+      "language": "en",
+      "title": "Pirate massacre finder",
+      "width": 1540,
+      "height": 860,
+      "sha256": "44a07f376011857702fe24445c4037f23dd4f2dd35f088d6935bb2061dc17254"
+    },
+    {
+      "file": "carrier-parking-finder-en.png",
+      "language": "en",
+      "title": "Carrier parking finder",
+      "width": 1300,
+      "height": 690,
+      "sha256": "e6296968d85a892bf5a66f99d7994ba0fd3eadae20bd0ec396754e95f047575f"
+    },
+    {
+      "file": "system-midpoint-finder-en.png",
+      "language": "en",
+      "title": "Midpoint - nearest systems",
+      "width": 1100,
+      "height": 650,
+      "sha256": "04155ede160355f6e127e162ac54f1d87220ab89da2965cf40d65d0f4c3079d2"
+    },
+    {
+      "file": "colonisation-finder-en.png",
+      "language": "en",
+      "title": "Colonisation candidate finder",
+      "width": 1700,
+      "height": 930,
+      "sha256": "e6f8f2dfe078725c6b30275b83b4f49cc279ec306ead16a115528d4ffd2837e7"
+    },
+    {
+      "file": "colonisation-finder-details-en.png",
+      "language": "en",
+      "title": "Colonisation candidate finder",
+      "width": 1700,
+      "height": 930,
+      "sha256": "2842a4751ae6da4e7c8461abd0b1e3bdb9bdc0307f8e2f12261c4336def07b69"
+    },
+    {
+      "file": "neutron-route-planner-en.png",
+      "language": "en",
+      "title": "Neutron jump planner",
+      "width": 1600,
+      "height": 940,
+      "sha256": "f8a40869d22cdc2497878090ec1e4e7bb131f500c9396614c80c42bb69b86569"
+    },
+    {
+      "file": "engineer-shopping-en.png",
+      "language": "en",
+      "title": "Engineer trip shopping",
+      "width": 1600,
+      "height": 930,
+      "sha256": "f3b213e3ba9933f21c0014489aeb939c3254db77a75e9d89b0c46f3c3d04de49"
+    },
+    {
+      "file": "engineer-shopping-route-details-en.png",
+      "language": "en",
+      "title": "Engineer trip shopping",
+      "width": 1600,
+      "height": 930,
+      "sha256": "c4cbc800b97e0efd6c8294757e4c5f0ff637eddfaf2755bf9747206e20682800"
+    },
+    {
+      "file": "main-system-details.png",
+      "language": "zh",
+      "title": "主界面星系详细条件",
+      "width": 1500,
+      "height": 1100,
+      "sha256": "7246909737905f5b463051893c39b79e4057708821f5b94bc50a171141c3086b"
+    },
+    {
+      "file": "main-system-details-en.png",
+      "language": "en",
+      "title": "Main-window system details",
+      "width": 1500,
+      "height": 1100,
+      "sha256": "509a6d0cdbb011c858fe06ab939a247428bab29932b98ed49bb3d93675db47c8"
+    }
+  ]
+}

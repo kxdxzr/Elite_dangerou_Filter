@@ -90,7 +90,7 @@ python filter_gui.py
 
 保留工具名称。新增可选的**最少／最多航母数**，包含边界；留空不限，最多填 **0** 筛选确认零航母的记录。按 Spansh 航母类型记录直接计数，不再按站点总数推测车位。数量未知不通过已启用的数量范围筛选；结果不代表实时空位。
 
-完整规则见 [检索逻辑](docs/README_检索逻辑.md) 和 [v0.1.2 发布说明](docs/releases/v0.1.2.md)。下方截图仍为 v0.1.1，尚未展示这些新增功能。
+完整规则见 [检索逻辑](docs/README_检索逻辑.md) 和 [v0.1.3 发布说明](docs/releases/v0.1.3.md)。下方截图已覆盖当前主界面及全部七个内置工具。
 
 **v0.1.2 更新版格式调整：** 主界面和所有工具的 ly 距离结果固定两位小数；人口显示整数，大数字每三位加逗号，例如 `1,234.50 ly`、人口 `1,234,567`、价值 `55,000 Cr`。主界面 CSV 导出名称、星系及本次搜索条件对应的实际值，各参考星系距离独立成列，不再导出整份原始 JSON。搜索后仅修改条件而未重查，不影响已有结果的导出列。航线 CSV 移除每行重复的内部完成、失败分段及状态列，未完成航线的导出确认保留。
 
@@ -153,7 +153,7 @@ python filter_gui.py
 
 ## 会话、数据与限制
 
-- 每 1.5 秒自动保存变更，关闭窗口时保存；兼容旧会话，保留未填完的主条件草稿、语言和五个工具参数。原子写入，关闭时保存失败会提示并保留窗口。
+- 每1.5秒及关闭窗口时保存变更；兼容旧会话，保留未完成主条件草稿、语言和七个工具参数。原子写入，关闭时保存失败会提示并保留窗口。
 - EXE 数据目录仍为 `%LOCALAPPDATA%\EliteDangerousFilter\`。源码运行将会话／舰船收藏保存到 `data/`，运行缓存保存到 `cache/`；`ELITE_FILTER_DATA_DIR` 仍可将两者统一覆盖到隔离目录。旧根目录文件在访问时迁移，也可用 `python scripts/migrate_data.py` 一次迁移全部已知运行文件；目标已存在时绝不覆盖，保留两份并报告冲突。个人数据、缓存和 CSV 均不上传仓库。
 - 数据不是实时任务、库存或空位。派系数量只估计潜在任务发布者，需要游戏内确认 BGS、声望和任务。
 - 稀有商品工具使用关联 Power，暂以 Spansh `Unoccupied` 作为 Inara Unoccupied / Expansion / Contested 的合并候选；对应关系尚未样本验证，不能分别筛选后两者。
@@ -170,19 +170,32 @@ python -m PyInstaller --noconfirm --clean EliteDangerousFilter.spec
 
 自动化测试覆盖引擎、会话、本地化、PvE 与殖民条件／数据完整性／缓存／并发及真实 GUI 操作。Tk 测试需要图形环境；Linux 无 DISPLAY 时跳过 GUI 测试。GitHub Actions 测试 Windows / Ubuntu、Python 3.10 / 3.13。
 
-构建输出 `dist/EliteDangerousFilter.exe`。隔离目录中使用 `--smoke-test <报告.json>` 验证六个工具窗口和中英文加载；分别运行 `--session-test write <报告.json>` 与 `--session-test read <另一报告.json>` 验证跨进程恢复。会话测试必须设置独立 `ELITE_FILTER_DATA_DIR`；报告目录须存在。
+构建输出 `dist/EliteDangerousFilter.exe`。隔离目录中使用 `--smoke-test <报告.json>` 验证七个工具窗口和中英文加载；分别运行 `--session-test write <报告.json>` 与 `--session-test read <另一报告.json>` 验证跨进程恢复。会话测试必须设置独立 `ELITE_FILTER_DATA_DIR`；报告目录须存在。
 
 CLI 示例：`python spansh_filter.py --help`；参数说明见 [筛选器说明](docs/README_筛选器说明.txt)。根目录入口保留原启动命令，实际代码在 `src/`，测试在 `tests/`，辅助脚本在 `scripts/`，示例条件在 `examples/`，详细文档／截图在 `docs/`。例如：`python spansh_filter.py --kind stations --ref-system Sol --filters-file examples/ex_station_hitech.json`。根目录 `python -m unittest discover -v` 仍然有效。EXE 自检模块由程序通过 `--smoke-test`／`--session-test` 加载，因此保留在 `src/`。
 
 ## 截图
 
-以下中文界面截图为 v0.1.1 主界面及原有四个辅助工具，拍摄于 2026-10-14，尚未展示 v0.1.2 新增殖民工具及更新的航母筛选；具体记录会随上游数据变化。英文界面截图见 [英文 README](README.md#screenshots)，所有工具均支持通过主界面的语言选择即时切换为英文。
+以下截图于**2026-10-17使用v0.1.3界面重新拍摄**，覆盖主窗口、星系详细条件编辑器及**全部七个内置工具**。均为实际应用窗口，填入**离线演示数据**，顶部黄色横幅明确标注；不代表实时库存、任务、可殖民星系或已验证航线。必要时加宽窗口以展示控件，点击图片可查看原尺寸。[英文截图](README.md#screenshots)。
+
+[主界面](#主界面) · [稀有商品](#稀有商品目标查找器) · [海盗任务](#海盗任务查找器测试中) · [航母车位](#航母车位查找器) · [两系中点](#两系中点工具) · [殖民候选](#殖民候选星系查找器-1) · [中子规划](#中子星跳跃规划器) · [工程师采购](#工程师途中采购)
 
 ### 主界面
 
+展示条件分类、槽位分类、单栏成对规格、折扣条件和独立结果列；名称表头的箭头表示排序方向。
+
 ![主界面](docs/images/main-gui.png)
 
+<details>
+<summary>星球／独立星环组及最近有人星系条件</summary>
+
+![主窗口星系详细条件编辑器](docs/images/main-system-details.png)
+
+</details>
+
 ### 稀有商品目标查找器
+
+展示来源、势力筛选、可选的实验性中子顺路条件，以及按星系合并的结果和参考中子星列。
 
 ![稀有商品目标查找器](docs/images/rare-goods-target-finder.png)
 
@@ -200,15 +213,49 @@ CLI 示例：`python spansh_filter.py --help`；参数说明见 [筛选器说明
 
 ### 航母车位查找器
 
-v0.1.1 历史截图：Sol 周围 15 ly 的站点／航母统计及旧版车位估计。v0.1.2 保留工具名称，改用航母数量范围筛选；两个版本均不提供实时空位。
+当前版本的航母数量上下限和可排序统计列，替换旧版车位估计界面；记录数量不等于实时空位。
 
 ![航母车位查找器](docs/images/carrier-parking-finder.png)
 
 ### 两系中点工具
 
-查找 Sol 与 Ngurii 中点附近的已收录星系，分别展示距中点、距两端的距离。
+展示两系中点的查询配置，以及距中点、距两端的示例结果列。
 
 ![两系中点工具](docs/images/system-midpoint-finder.png)
+
+### 殖民候选星系查找器
+
+展示独立区域／最近有人距离、星球条件组、扫描价值前三名和邻近有人星系信息。
+
+![殖民候选星系查找器](docs/images/colonisation-finder.png)
+
+<details>
+<summary>结果向右滚动：价值与天体匹配证据</summary>
+
+![殖民候选结果明细](docs/images/colonisation-finder-details.png)
+
+</details>
+
+### 中子星跳跃规划器
+
+展示示例舰船收藏、理论跳距、有序途经点、规划选项和分段结果；图中航线为演示记录，不是实际规划结果。
+
+![中子星跳跃规划器](docs/images/neutron-route-planner.png)
+
+### 工程师途中采购
+
+展示多项独立规格采购清单、工程师目的地、自定航程、额外跳数限制、忽略航母／地面站和逐项折扣证据。
+
+![工程师途中采购](docs/images/engineer-shopping.png)
+
+<details>
+<summary>结果向右滚动：距离、估算跳数与绕行距离</summary>
+
+![工程师采购距离和估算跳数明细](docs/images/engineer-shopping-route-details.png)
+
+</details>
+
+截图可在Windows使用可选开发依赖**Pillow 12**重拍：`python scripts/capture_screenshots.py`。脚本禁用网络、隔离会话，并在[screenshots.json](docs/images/screenshots.json)记录版本、尺寸及校验值；应用运行不需要Pillow。
 
 ## 数据来源
 

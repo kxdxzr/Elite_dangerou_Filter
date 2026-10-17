@@ -90,7 +90,7 @@ Switch the main search type to **systems**:
 
 The tool keeps its name. Enter optional **Min carriers / Max carriers** to filter nearby systems using inclusive bounds; blank means unrestricted and maximum **0** selects records with a confirmed zero count. Carrier types are counted from Spansh records rather than inferred from total station counts. Unknown counts do not pass an enabled count bound. These are not live parking vacancies.
 
-See [detailed rules](docs/README_search_logic.md) and the [v0.1.2 release notes](docs/releases/v0.1.2.md). The screenshot gallery below is still from v0.1.1 and does not illustrate these additions.
+See [detailed rules](docs/README_search_logic.md) and the [v0.1.3 release notes](docs/releases/v0.1.3.md). The screenshot gallery below now covers the current main window and all seven built-in tools.
 
 **Updated v0.1.2 formatting:** ly distances across the main results and all tools use exactly two decimal places; population uses integers, and large numeric results use comma grouping (for example `1,234.50 ly`, population `1,234,567`, value `55,000 Cr`). Human-readable CSV columns and CLI text follow the same convention. Main CSV exports identity plus actual values for the completed search's conditions, with separate distance columns per reference system; full raw JSON is no longer exported. Editing conditions without rerunning does not change the exported columns. Route CSV omits repeated internal completion/failure/status columns; incomplete-route confirmation remains.
 
@@ -153,7 +153,7 @@ Measured locally for `Sol / unlimited / minimum 3 factions / Yuri Grom / source`
 
 ## Sessions, data and limitations
 
-- Changes auto-save every 1.5 seconds and on window close. Old sessions remain compatible; incomplete main-condition drafts, language and all five tool settings are preserved. Writes are atomic; failed close-time saves display an error and keep the window open.
+- Changes auto-save every 1.5 seconds and on window close. Old sessions remain compatible; incomplete main-condition drafts, language and all seven tool settings are preserved. Writes are atomic; failed close-time saves display an error and keep the window open.
 - EXE data remains in `%LOCALAPPDATA%\EliteDangerousFilter\`. Source runs store sessions/build favourites in `data/` and runtime caches in `cache/`. `ELITE_FILTER_DATA_DIR` still overrides both with one isolated directory. Legacy root files migrate on access; use `python scripts/migrate_data.py` to migrate all known runtime files. Existing destination files are never overwritten; conflicts retain both copies. Personal data, caches and CSV exports are excluded from Git.
 - Third-party records are not live missions, stock or vacancies. Faction counts only estimate potential issuers; verify BGS state, reputation and mission availability in game.
 - Rare goods searches use associated Power. Spansh `Unoccupied` currently approximates Inara's Unoccupied / Expansion / Contested group; that mapping is unverified and the latter two cannot be filtered separately.
@@ -170,19 +170,32 @@ python -m PyInstaller --noconfirm --clean EliteDangerousFilter.spec
 
 Automated tests cover the engine, sessions, localization, PvE and colonisation conditions/data integrity/cache/concurrency and real GUI interactions. Tk tests require a graphical display and are skipped on headless Linux. GitHub Actions tests Windows / Ubuntu with Python 3.10 / 3.13.
 
-Build output: `dist/EliteDangerousFilter.exe`. Use `--smoke-test <report.json>` to verify six tool windows and both languages. Run `--session-test write <report.json>` and `--session-test read <another-report.json>` in separate processes to verify restoration. Session tests require an isolated `ELITE_FILTER_DATA_DIR`; report directories must already exist.
+Build output: `dist/EliteDangerousFilter.exe`. Use `--smoke-test <report.json>` to verify seven tool windows and both languages. Run `--session-test write <report.json>` and `--session-test read <another-report.json>` in separate processes to verify restoration. Session tests require an isolated `ELITE_FILTER_DATA_DIR`; report directories must already exist.
 
 CLI entry point: `python spansh_filter.py --help`. Root launchers retain the old commands; implementation modules live in `src/`. Tests are in `tests/`, runnable helpers in `scripts/`, sample filters in `examples/`, and detailed documentation/screenshots in `docs/`. Example: `python spansh_filter.py --kind stations --ref-system Sol --filters-file examples/ex_station_hitech.json`. Root-level `python -m unittest discover -v` also remains supported. Runtime EXE self-check modules stay in `src/` because the application loads them with `--smoke-test` / `--session-test`.
 
 ## Screenshots
 
-These English-interface screenshots show the v0.1.1 main window and four original tools, captured on 2026-10-14. They do not yet show the new colonisation tool or updated carrier filters in v0.1.2; results change with upstream data. For Chinese-interface screenshots, see the [Chinese README](README_zh-CN.md#截图).
+Captured from the **v0.1.3 UI on 2026-10-17**, covering the main window, its detailed system-condition editor, and **all seven built-in tools**. These are real application windows populated with **offline illustrative data**, explicitly labelled by the yellow banner. They do **not** show live inventory, actual missions, claimable systems or verified routes. Windows are widened where needed to show controls; click an image for full resolution. [Chinese screenshots](README_zh-CN.md#截图).
+
+[Main search](#main-window) · [Rare goods](#rare-goods-target-finder) · [Pirate candidates](#pirate-massacre-finder-testing-1) · [Carrier parking](#carrier-parking-finder) · [Midpoint](#system-midpoint-finder) · [Colonisation](#colonisation-candidate-finder-1) · [Neutron routes](#neutron-jump-planner) · [Engineer shopping](#engineer-trip-shopping)
 
 ### Main window
 
+Condition categories, slot browsing, a single paired-specification selector, discount requirements and separate result columns. The arrow in the Name header demonstrates sorting.
+
 ![Main GUI in English](docs/images/main-gui-en.png)
 
+<details>
+<summary>Planet / ring groups and nearest-populated-system conditions</summary>
+
+![Main-window detailed system conditions in English](docs/images/main-system-details-en.png)
+
+</details>
+
 ### Rare goods target finder
+
+Source selection, Power filtering and the optional experimental neutron-alignment controls, with system-level grouping and reference-neutron columns.
 
 ![Rare goods target finder in English](docs/images/rare-goods-target-finder-en.png)
 
@@ -200,15 +213,49 @@ Two views of the same query: the result overview, followed by the table scrolled
 
 ### Carrier parking finder
 
-Historical v0.1.1 screenshot: Sol within 15 ly, with station/carrier counts and the old parking estimates. v0.1.2 replaces those estimates with carrier-count bounds, retaining the tool name. Neither version reports live vacancies.
+The current carrier-count minimum/maximum filters and sortable recorded counts, replacing the obsolete parking estimates. Counts are not live vacancies.
 
 ![Carrier parking finder in English](docs/images/carrier-parking-finder-en.png)
 
 ### System midpoint finder
 
-Nearest recorded systems to the Sol–Ngurii midpoint, with distance to the midpoint and both endpoints.
+Midpoint-search configuration and example distance columns for the midpoint and both endpoints.
 
 ![System midpoint finder in English](docs/images/system-midpoint-finder-en.png)
+
+### Colonisation candidate finder
+
+Independent regional/nearest-populated distance filters, planet groups, top scan-value planets and nearest-system information.
+
+![Colonisation candidate finder in English](docs/images/colonisation-finder-en.png)
+
+<details>
+<summary>Result columns scrolled right: value and matching-body evidence</summary>
+
+![Colonisation result details in English](docs/images/colonisation-finder-details-en.png)
+
+</details>
+
+### Neutron jump planner
+
+Saved example ship build, theoretical range preview, ordered waypoint, route options and per-leg results. The displayed route is illustrative, not an actual plotted journey.
+
+![Neutron jump planner in English](docs/images/neutron-route-planner-en.png)
+
+### Engineer trip shopping
+
+Multiple independently specified shopping items, engineer selection, custom range, extra-jump limit, carrier/planetary exclusions and per-item discount evidence.
+
+![Engineer trip shopping in English](docs/images/engineer-shopping-en.png)
+
+<details>
+<summary>Result columns scrolled right: distances, estimated jumps and detours</summary>
+
+![Engineer shopping distance and estimated-jump details in English](docs/images/engineer-shopping-route-details-en.png)
+
+</details>
+
+Screenshot refreshes are reproducible on Windows with optional developer dependency **Pillow 12**: `python scripts/capture_screenshots.py`. The script blocks network access, isolates sessions and records version/dimensions/checksums in [screenshots.json](docs/images/screenshots.json); Pillow is not required to run the application.
 
 ## Data sources
 
