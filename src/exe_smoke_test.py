@@ -43,6 +43,21 @@ def run(gui, report_path):
         colony = app.colonisation_window()
         route = app.route_window()
         shopping = app.engineer_shopping_window()
+
+        def button(parent, raw):
+            stack, found = [parent], None
+            while stack:
+                for child in stack.pop().winfo_children():
+                    if isinstance(child, gui.ttk.Button) and getattr(child, '_raw_text', '') == raw:
+                        found = found or child
+                    stack.append(child)
+            assert found is not None, f'missing button {raw}'
+            return found
+
+        # 发布后修复的三个标签必须随界面语言切换。
+        assert button(colony, '查询').cget('text') == '查询'
+        assert button(shopping, '查询').cget('text') == '查询'
+        assert button(shopping, '复制站名').cget('text') == '复制站名'
         shopping.session_variables['origin'].set('LHS 336')
         shopping.session_variables['destination'].set('Didi Vatermann — Leesti')
         shopping.purchase_row.val.set('Shield Booster')
@@ -75,6 +90,9 @@ def run(gui, report_path):
         assert shopping.title() == 'Engineer trip shopping'
         assert route.title() == 'Neutron jump planner'
         assert colony.title() == "Colonisation candidate finder"
+        assert button(colony, '查询').cget('text') == 'Search'
+        assert button(shopping, '查询').cget('text') == 'Search'
+        assert button(shopping, '复制站名').cget('text') == 'Copy station name'
         from main_system_gui import DetailsRow
         app.kind.set('systems')
         detailed_row = DetailsRow(app.inner, 'systems')
@@ -82,6 +100,7 @@ def run(gui, report_path):
         detailed_row.apply_condition(dict(nearest_max=10, population_min=1))
         detailed_editor = detailed_row.open_editor()
         assert detailed_editor.title() == 'Main-window system details'
+        assert button(detailed_editor, '关闭').cget('text') == 'Close'
         assert detailed_row.to_cond()['nearest_max'] == 10
         detailed_editor.destroy()
         assert pve.title() == "Pirate massacre finder"

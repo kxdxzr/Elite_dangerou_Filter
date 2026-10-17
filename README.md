@@ -257,7 +257,7 @@ Multiple independently specified shopping items, engineer selection, custom rang
 
 Screenshot refreshes are reproducible on Windows with optional developer dependency **Pillow 12**: `python scripts/capture_screenshots.py`. The script blocks network access, isolates sessions and records version/dimensions/checksums in [screenshots.json](docs/images/screenshots.json); Pillow is not required to run the application.
 
-The screenshots include the subsequent English-label correction on `main` (Search / Copy station name / Close). The original v0.1.3 release executable has not yet been replaced with this correction.
+The screenshots include the English-label correction (Search / Copy station name / Close), which the rebuilt v0.1.3 release executable also contains; the release's `SHA256SUMS.txt` matches the rebuilt asset.
 
 ## Data sources
 
