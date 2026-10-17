@@ -80,7 +80,58 @@ def booster(symbol):
     match = re.fullmatch(r'int_guardianfsdbooster_size([1-5])', symbol, re.I)
     if not match:
         raise ValueError(f'Unsupported Guardian FSD booster: {symbol}')
-    return {1: 4, 2: 6, 3: 8, 4: 9.25, 5: 10.5}[int(match[1])]
+    return {1: 4, 2: 6, 3: 7.75, 4: 9.25, 5: 10.5}[int(match[1])]
+
+
+def ship_identity(text):
+    """Keep player-provided ship names/identifiers intact; label known Journal IDs."""
+    build, kind = decode_build(text)
+    if kind == 'Coriolis':
+        return dict(model=str(build.get('ship') or ''), name=str(build.get('name') or ''), ident='')
+    data = build['data']
+    model = str(data.get('Ship') or '')
+    normalise = lambda value: re.sub(r'[^a-z0-9]', '', value.casefold())
+    models = {normalise(name): name for name in RESERVOIRS}
+    models.update(asp='Asp Explorer', viper='Viper Mk III', eagle='Eagle Mk II',
+                  cobramkiii='Cobra Mk III', cobramkiv='Cobra Mk IV', cobramkv='Cobra Mk V',
+                  empiretrader='Imperial Clipper', empirecourier='Imperial Courier',
+                  cutter='Imperial Cutter', federationcorvette='Federal Corvette',
+                  federationdropship='Federal Dropship', federationdropshipmkii='Federal Assault Ship',
+                  federationgunship='Federal Gunship', independanttrader='Keelback',
+                  type6='Type-6 Transporter', type7='Type-7 Transporter', type8='Type-8 Transporter',
+                  type9='Type-9 Heavy', type9military='Type-10 Defender',
+                  diamondback='Diamondback Scout', diamondbackxl='Diamondback Explorer',
+                  kraitmkii='Krait Mk II', typex='Alliance Chieftain',
+                  typex2='Alliance Crusader', typex3='Alliance Challenger')
+    return dict(model=models.get(normalise(model), model), name=str(data.get('ShipName') or ''),
+                ident=str(data.get('ShipIdent') or ''))
+
+
+def jump_attributes(params, cargo=0):
+    """Theoretical single-jump ranges: full main + auxiliary tanks, no injection.
+
+    Guardian range is included before the drive's neutron multiplier (normally
+    4x, 6x for the supported supercharge-optimised Mk II drive). This does not
+    claim a neutron star is available or that the drive is currently charged.
+    """
+    cargo = numeric(cargo, 'Cargo')
+    tank = numeric(params['tank_size'], 'Tank size', True)
+    mass = numeric(params['base_mass'], 'Base mass', True) + tank + cargo
+    fuel = min(tank, numeric(params['max_fuel_per_jump'], 'Fuel per jump', True))
+    optimal = numeric(params['optimal_mass'], 'Optimal mass', True)
+    multiplier = numeric(params['fuel_multiplier'], 'Fuel multiplier', True)
+    power = numeric(params['fuel_power'], 'Fuel power', True)
+    boost = numeric(params['range_boost'], 'Guardian boost')
+    neutron = numeric(params['supercharge_multiplier'], 'Neutron multiplier', True)
+    try:
+        normal = optimal / mass * (fuel / multiplier) ** (1 / power) + boost
+        charged = normal * neutron
+    except (OverflowError, ZeroDivisionError):
+        raise ValueError('Invalid jump range parameters.') from None
+    numeric(normal, 'Jump range', True)
+    numeric(charged, 'Neutron jump range', True)
+    return dict(cargo=cargo, total_mass=mass, fuel_per_jump=fuel, normal_range=normal,
+                neutron_range=charged, neutron_multiplier=neutron)
 
 
 def parse_ship(text, fsds):

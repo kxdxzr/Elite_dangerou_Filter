@@ -138,7 +138,7 @@ STATION_FIELDS_CN = {
     "large_pads": "大型停机坪数",
     "medium_pads": "中型停机坪数",
     "small_pads": "小型停机坪数",
-    "distance_to_arrival": "到达距离(光秒)",
+    "distance_to_arrival": "到达距离 ls",
     "distance": "距离(光年)",
     "services": "服务设施",
     "material_trader": "材料商",

@@ -54,6 +54,40 @@ class Server:
 
 
 class ShipTests(unittest.TestCase):
+    def test_ship_identity_for_both_formats_and_unknown_models(self):
+        data = build()
+        data['data'].update(Ship='diamondbackxl', ShipName='My Explorer', ShipIdent='AB-12')
+        self.assertEqual(ship.ship_identity(json.dumps([data])),
+                         dict(model='Diamondback Explorer', name='My Explorer', ident='AB-12'))
+        data['data']['Ship'] = 'future_ship'
+        self.assertEqual(ship.ship_identity(json.dumps(data))['model'], 'future_ship')
+        coriolis = dict(ship='Asp Explorer', name='Test build', components={}, stats={})
+        self.assertEqual(ship.ship_identity(json.dumps(coriolis)),
+                         dict(model='Asp Explorer', name='Test build', ident=''))
+
+    def test_full_tank_range_cargo_and_neutron_multiplier(self):
+        params = dict(base_mass=100, tank_size=20, max_fuel_per_jump=5, optimal_mass=120,
+                      fuel_multiplier=5, fuel_power=2, range_boost=10, supercharge_multiplier=4)
+        original = copy.deepcopy(params)
+        values = ship.jump_attributes(params)
+        self.assertEqual((values['normal_range'], values['neutron_range']), (11, 44))
+        self.assertEqual(values['total_mass'], 120)
+        laden = ship.jump_attributes(params, 120)
+        self.assertEqual((laden['normal_range'], laden['neutron_range']), (10.5, 42))
+        self.assertEqual(params, original)
+        params['supercharge_multiplier'] = 6
+        self.assertEqual(ship.jump_attributes(params)['neutron_range'], 66)
+        params['tank_size'] = 2
+        small = ship.jump_attributes(params)
+        self.assertEqual(small['fuel_per_jump'], 2)
+        self.assertAlmostEqual(small['normal_range'], 120 / 102 * (2 / 5) ** .5 + 10)
+        for cargo in (-1, 'nan', 'bad', True):
+            with self.subTest(cargo=cargo), self.assertRaises(ValueError):
+                ship.jump_attributes(params, cargo)
+
+    def test_guardian_booster_size_three_is_7_75_ly(self):
+        self.assertEqual(ship.booster('int_guardianfsdbooster_size3'), 7.75)
+
     def test_slef_engineering_and_booster(self):
         data = build()
         data['data']['Modules'][0]['Engineering'] = dict(Modifiers=[
@@ -208,7 +242,22 @@ class RouteTests(unittest.TestCase):
             path = Path(directory) / 'route.csv'
             tool.export_csv(path, info)
             rows = list(csv.reader(io.StringIO(path.read_text(encoding='utf-8-sig'))))
-        self.assertIn('4.12', rows[1])
-        self.assertIn(tool.FULL_TANK_NOTE, rows[1])
-        self.assertEqual(rows[-1][-3:], ['False', '2', 'No route for leg'])
+        self.assertIn('4.12', rows[7])
+        self.assertIn(tool.FULL_TANK_NOTE, rows[7])
+        from test_export_metadata import assert_provenance
+        assert_provenance(self, rows, len(rows[0]))
+        self.assertEqual(len(rows[-1]), len(tool.COLUMNS))
+        for field in ('route_complete', 'failed_segment', 'route_status'):
+            self.assertNotIn(field, rows[6])
         self.assertEqual(info['rows'][0]['distance'], 4.123456)
+
+    def test_english_csv_translates_status_and_footer(self):
+        info = tool.plan(json.dumps(build()), ['A', 'B'], tool.Options(), http=Server(), fsds=FSDS)
+        self.assertTrue(info['complete'])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'english.csv'
+            tool.export_csv(path, info, language='en')
+            rows = list(csv.reader(io.StringIO(path.read_text(encoding='utf-8-sig'))))
+        from test_export_metadata import assert_english_csv, assert_provenance
+        assert_provenance(self, rows, len(rows[0]))
+        assert_english_csv(self, rows)

@@ -1,6 +1,7 @@
 """Spansh online exact routes, local ship favourites and independent full-tank legs."""
 import copy
 import csv
+from export_metadata import PROJECT_VERSION, write_csv_provenance
 import gzip
 import json
 import os
@@ -22,7 +23,7 @@ FULL_TANK_NOTE = '本段起点按满油计算；途经点不保证能补油'
 def http_json(url, payload=None):
     data = urllib.parse.urlencode(payload).encode('utf-8') if payload is not None else None
     request = urllib.request.Request(url, data=data, headers={
-        'User-Agent': 'EliteDangerousFilter/0.1.2', 'Accept-Encoding': 'gzip',
+        'User-Agent': f'EliteDangerousFilter/{PROJECT_VERSION}', 'Accept-Encoding': 'gzip',
         'Content-Type': 'application/x-www-form-urlencoded'})
     with urllib.request.urlopen(request, timeout=30) as response:
         raw = response.read(32 * 1024 * 1024 + 1)
@@ -139,9 +140,10 @@ def payload(ship, raw, source, destination, options, leg):
                 algorithm=options.algorithm)
 
 
-def plot_leg(request, stop=None, progress=None, http=http_json, timeout=600, wait=None):
+def plot_job(request, stop=None, progress=None, http=http_json, timeout=600, wait=None,
+             endpoint='/generic/route'):
     check_stop(stop)
-    response = http(BASE + '/generic/route', request)
+    response = http(BASE + endpoint, request)
     job = str(response.get('job', ''))
     if not re.fullmatch(r'[A-Za-z0-9-]{1,100}', job) or response.get('status') == 'error':
         raise ValueError(str(response.get('error') or 'Spansh did not return a valid route job.'))
@@ -153,10 +155,9 @@ def plot_leg(request, stop=None, progress=None, http=http_json, timeout=600, wai
             raise ValueError(str(response.get('error') or 'Spansh route job failed.'))
         if response.get('state') == 'completed' or response.get('status') == 'ok':
             result = response.get('result')
-            jumps = result.get('jumps') if isinstance(result, dict) else None
-            if not isinstance(jumps, list) or not jumps:
-                raise ValueError('Completed route has no jump list.')
-            return job, jumps
+            if not isinstance(result, dict):
+                raise ValueError('Completed route has no result object.')
+            return job, result
         state = response.get('state') or response.get('status')
         if state not in ('queued', 'unstarted', 'started', 'running'):
             raise ValueError('Unknown route job state: ' + str(state))
@@ -171,6 +172,14 @@ def plot_leg(request, stop=None, progress=None, http=http_json, timeout=600, wai
             time.sleep(delay)
         delay = min(10, delay * 1.5)
     raise TimeoutError('Spansh route job timed out; no automatic resubmission was made.')
+
+
+def plot_leg(request, stop=None, progress=None, http=http_json, timeout=600, wait=None):
+    job, result = plot_job(request, stop, progress, http, timeout, wait)
+    jumps = result.get('jumps')
+    if not isinstance(jumps, list) or not jumps:
+        raise ValueError('Completed route has no jump list.')
+    return job, jumps
 
 
 def validate_jumps(jumps, source, destination):
@@ -262,10 +271,14 @@ def display_rows(info, tr=lambda x: x):
     return output
 
 
-def export_csv(path, info, tr=lambda x: x):
+def export_csv(path, info, tr=None, language='zh'):
+    if tr is None:
+        from i18n import translate
+        tr = lambda text: translate(text, language)
     with open(path, 'w', encoding='utf-8-sig', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow([tr(title) for _, title in COLUMNS] + ['route_complete', 'failed_segment', 'route_status'])
+        write_csv_provenance(writer, len(COLUMNS), language)
+        writer.writerow([tr(title) for _, title in COLUMNS])
         for values in display_rows(info, tr):
-            row = values + [info['complete'], info['failed_segment'] or '', info['reason']]
+            row = values
             writer.writerow(["'" + v if isinstance(v, str) and v.startswith(('=', '+', '-', '@')) else v for v in row])

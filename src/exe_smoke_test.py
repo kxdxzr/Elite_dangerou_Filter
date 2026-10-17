@@ -31,8 +31,9 @@ def run(gui, report_path):
         row.field.set(gui.field_label("stations", "modules"))
         row.val.set("Fuel Scoop")
         row.refresh_options()
-        assert tuple(row.ent_class["values"]) == tuple(str(i) for i in range(1, 9))
-        assert tuple(row.ent_rating["values"]) == tuple("ABCDE")
+        assert '5A' in row.cb_spec['values'] and '5E' in row.cb_spec['values']
+        assert fo.get_module_variants('Plasma Accelerator') == ['2C', '3B', '4A']
+        assert fo.get_module_variants('Rail Gun') == ['1D', '2B']
         window = powerplay_gui.open_window(app, gui.data_age)
         assert window.title() == "稀有商品目标查找器"
         app.carrier_parking_window()
@@ -41,6 +42,23 @@ def run(gui, report_path):
         assert pve.title() == "海盗任务查找器"
         colony = app.colonisation_window()
         route = app.route_window()
+        shopping = app.engineer_shopping_window()
+        shopping.session_variables['origin'].set('LHS 336')
+        shopping.session_variables['destination'].set('Didi Vatermann — Leesti')
+        shopping.purchase_row.val.set('Shield Booster')
+        shopping.purchase_row.v_spec.set('0A')
+        shopping.add_purchase(dict(value='Plasma Accelerator', module_spec='2C'))
+        assert [c['values'] for c in shopping.criteria()[0].conditions[:2]] == [['Shield Booster'], ['Plasma Accelerator']]
+        assert 'ignore_planetary' in shopping.session_variables
+        assert len(shopping.destination_box['values']) == 25
+        app.results = [dict(name='Shop 10', system_name='Sol', distance_to_arrival=10),
+                       dict(name='Shop 2', system_name='Sol', distance_to_arrival=2)]
+        app._result_kind = 'stations'
+        app._result_conditions = [dict(field='distance_to_arrival', op='<', text=100)]
+        app.render_main_results()
+        app.tree.sort_by('value_2')
+        assert app.tree.set(app.tree.get_children()[0], 'name') == 'Shop 2'
+        assert app.results[0]['name'] == 'Shop 10'
         assert route.title() == '中子星跳跃规划器'
         assert route.route_state['points'] == []
         assert 'population' not in colony.result_tree['columns']
@@ -54,6 +72,7 @@ def run(gui, report_path):
             {'field': '_is_binary', 'op': '=', 'value': 'true'}])
         assert colony.criteria().body_groups[0][0]['field'] == '_is_binary'
         app.set_language("en")
+        assert shopping.title() == 'Engineer trip shopping'
         assert route.title() == 'Neutron jump planner'
         assert colony.title() == "Colonisation candidate finder"
         from main_system_gui import DetailsRow
@@ -75,7 +94,10 @@ def run(gui, report_path):
         assert len(rare_goods.GOODS) == 142
         assert len(rare_goods.SOURCE_SYSTEMS) == 138
         assert len(fo.BUNDLED_OPTIONS["stations/modules"]) == 153
-        report.update(ok=True, data_directory=data_directory(), session_file=gui.SESSION_FILE,
+        from export_metadata import PROJECT_VERSION
+        report.update(ok=True, version=PROJECT_VERSION, shopping_items=len(shopping.purchase_rows),
+                      sortable_results=True, paired_specs=len(fo.BUNDLED_MODULE_PAIRS),
+                      data_directory=data_directory(), session_file=gui.SESSION_FILE,
                       cache_file=fo.CACHE_FILE, specs_file=fo.SPECS_FILE,
                       goods=142, sources=138, modules=153, languages=["zh", "en"],
                       windows=[w.title() for w in root.winfo_children() if isinstance(w, gui.tk.Toplevel)])

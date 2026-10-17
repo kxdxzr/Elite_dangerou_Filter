@@ -3,6 +3,7 @@
 关闭时自动记住条件, 下次打开恢复。
 """
 import csv
+from export_metadata import write_csv_provenance
 import json
 import os
 import queue
@@ -426,18 +427,27 @@ class Row:
             self.cb_ref.bind("<FocusOut>", lambda e: (SuggestPopup.inst().hide(self.cb_ref),
                                                           self.validate_ref()))
         else:
+            bar = self.controls = ttk.Frame(self.frame)
+            bar.pack(fill='x')
+            self.subcontrols = ttk.Frame(self.frame)
+            ttk.Label(bar, text='条件分类').pack(side='left')
+            self.v_category = tk.StringVar(value='不限')
+            self.cb_category = ttk.Combobox(bar, textvariable=self.v_category, width=16,
+                                           state='readonly')
+            self.cb_category.pack(side='left', padx=2)
+            self.cb_category.bind('<<ComboboxSelected>>', lambda e: self.change_category())
             self.field = tk.StringVar()
             self.op = tk.StringVar(value="属于其一")
             self.val = tk.StringVar()
-            self.cb_field = ttk.Combobox(self.frame, textvariable=self.field,
+            self.cb_field = ttk.Combobox(bar, textvariable=self.field,
                                          width=30, state="readonly")
             self.cb_field.pack(side="left", padx=2)
             self.cb_field.bind("<<ComboboxSelected>>", lambda e: self.refresh_options())
-            self.cb_op = ttk.Combobox(self.frame, textvariable=self.op, width=10,
+            self.cb_op = ttk.Combobox(bar, textvariable=self.op, width=10,
                                       values=OP_LABELS, state="readonly")
             self.cb_op.pack(side="left")
             self.cb_op.bind("<<ComboboxSelected>>", lambda e: self.refresh_options())
-            self.cb_val = ttk.Combobox(self.frame, textvariable=self.val, width=30)
+            self.cb_val = ttk.Combobox(bar, textvariable=self.val, width=24)
             self.cb_val.pack(side="left", padx=4, fill="x", expand=True)
             self.cb_val.bind("<KeyRelease>", self._on_val_key)
             self.cb_val.bind("<<ComboboxSelected>>",
@@ -445,31 +455,42 @@ class Row:
                                         self.validate_val()))
             self.cb_val.bind("<FocusOut>", lambda e: (SuggestPopup.inst().hide(self.cb_val),
                                                       self.validate_val()))
-            self.btn_pick = ttk.Button(self.frame, text="选值…", width=6,
-                                       command=self.pick_values)
+            self.btn_pick = ttk.Button(bar, text="选值…", width=6,
+                                        command=self.pick_values)
             self.btn_pick.pack(side="left")
-            # 模块规格: 仅 modules 字段 + 属于/等于/包含时显示 (等级如 5/3;5, 级别如 A/A;B)
-            self.lbl_mclass = ttk.Label(self.frame, text="等级")
+            from module_slots import SLOT_GROUPS
+            self.lbl_slot = ttk.Label(bar, text='槽位类型')
+            self.v_slot = tk.StringVar(value='不限')
+            self.cb_slot = ttk.Combobox(bar, textvariable=self.v_slot, width=12,
+                                       values=SLOT_GROUPS, state='readonly')
+            self.cb_slot.bind('<<ComboboxSelected>>', lambda e: self.refresh_options())
+            # One paired specification selector; legacy filters retain their model variables.
             self.v_class = tk.StringVar()
-            self.ent_class = ttk.Combobox(self.frame, textvariable=self.v_class, width=8,
-                                          postcommand=self._refresh_spec_options)
-            self.lbl_mrating = ttk.Label(self.frame, text="级别")
             self.v_rating = tk.StringVar()
-            self.ent_rating = ttk.Combobox(self.frame, textvariable=self.v_rating, width=6,
-                                           postcommand=self._refresh_spec_options)
+            self.lbl_spec = ttk.Label(self.subcontrols, text='规格')
+            self.v_spec = tk.StringVar(value='不限')
+            self._spec_display = '不限'
+            self.cb_spec = ttk.Combobox(self.subcontrols, textvariable=self.v_spec, width=28,
+                                        postcommand=self._refresh_spec_options)
+            self.cb_spec.bind('<<ComboboxSelected>>', lambda e: self._commit_spec())
+            self.cb_spec.bind('<FocusOut>', lambda e: self.validate_val())
             # 集成新鲜度: 仅 ships/modules + 属于/等于/包含时显示
-            self.lbl_fresh = ttk.Label(self.frame, text="新鲜度")
+            self.lbl_fresh = ttk.Label(self.subcontrols, text="新鲜度")
             self.v_fresh = tk.StringVar(value="不限")
-            self.cb_fresh = ttk.Combobox(self.frame, textvariable=self.v_fresh, width=8,
+            self.cb_fresh = ttk.Combobox(self.subcontrols, textvariable=self.v_fresh, width=8,
                                          values=FRESH_OPTS, state="readonly")
+            self.lbl_discount = ttk.Label(self.subcontrols, text='是否打折')
+            self.v_discount = tk.StringVar(value='不限')
+            self.cb_discount = ttk.Combobox(self.subcontrols, textvariable=self.v_discount, width=6,
+                                           values=['不限', '是'], state='readonly')
             self.opt_info = tk.StringVar(value="")
-            self.lbl_opt = ttk.Label(self.frame, textvariable=self.opt_info, width=10,
+            self.lbl_opt = ttk.Label(bar, textvariable=self.opt_info, width=10,
                                      foreground="gray")
             self.lbl_opt.pack(side="left")
             self._opt_base = ""
             self.set_fields(kind)
             self.refresh_options()
-        ttk.Button(self.frame, text="删除", width=6,
+        ttk.Button(self.controls if self.type == 'field' else self.frame, text="删除", width=6,
                    command=self.destroy).pack(side="right")
 
     # ---- 距离参考点联想 (Inara式): 打字即在下方弹候选 ----
@@ -569,7 +590,13 @@ class Row:
         if self.type != "field":
             return
         self.kind = kind
-        keys = sorted(STATION_FIELDS if kind == "stations" else SYSTEM_FIELDS)
+        from field_categories import available_groups, fields_for
+        fields = STATION_FIELDS if kind == 'stations' else SYSTEM_FIELDS
+        groups = available_groups(fields)
+        self.cb_category['values'] = groups
+        if self.v_category.get() not in groups:
+            self.v_category.set('不限')
+        keys = fields_for(fields, self.v_category.get())
         labels = [field_label(kind, k) for k in keys]
         self.cb_field["values"] = labels
         cur_en = parse_field_label(self.field.get())
@@ -577,12 +604,23 @@ class Row:
             first = keys[0] if keys else ""
             self.field.set(field_label(kind, first) if first else "")
 
+    def change_category(self):
+        self.set_fields(self.kind)
+        self.refresh_options()
+
     def _toggle_module_sub(self):
         """模块规格输入显隐: 仅 stations.modules + 属于/等于/包含时显示。"""
         show = (self.type == "field" and self.kind == "stations"
                 and parse_field_label(self.field.get().strip()) == "modules"
                 and self.op.get() in ("属于其一", "等于", "包含"))
-        for w in (self.lbl_mclass, self.ent_class, self.lbl_mrating, self.ent_rating):
+        browse = (self.kind == 'stations' and parse_field_label(self.field.get().strip()) == 'modules'
+                  and self.op.get() not in NUMERIC_OPS and self.op.get() not in ('是', '否'))
+        for widget in (self.lbl_slot, self.cb_slot):
+            if browse:
+                widget.pack(side='left', before=self.cb_val, padx=(4, 0))
+            else:
+                widget.pack_forget()
+        for w in (self.lbl_spec, self.cb_spec):
             if show:
                 w.pack(side="left", padx=(4, 0))
             else:
@@ -609,17 +647,57 @@ class Row:
         return None
 
     def _refresh_spec_options(self):
-        """等级/级别下拉联动：学过该模块的规格就只给已见子集，否则给全集。"""
-        name = self._single_module_name()
-        self.ent_class["values"] = fo.get_module_classes(name)
-        self.ent_rating["values"] = fo.get_module_ratings(name)
+        """One specification dropdown; no class/rating cross product."""
+        names = [s.strip() for s in self.val.get().replace('，', ';').replace(',', ';').split(';') if s.strip()]
+        self.cb_spec['values'] = ['不限'] + fo.get_module_variants(names)
+        if self.v_spec.get() == self._spec_display:
+            self._sync_spec_display()
+
+    def _spec_text(self):
+        classes = [s.strip() for s in self.v_class.get().split(';') if s.strip()]
+        ratings = [s.strip() for s in self.v_rating.get().split(';') if s.strip()]
+        if not classes and not ratings:
+            display = '不限'
+        elif len(classes) == len(ratings) == 1:
+            display = classes[0] + ratings[0]
+        else:
+            # Preserve old partial/multiple filters without inventing paired variants.
+            display = f"class={';'.join(classes) or '*'} / rating={';'.join(ratings) or '*'}"
+        return display
+
+    def _sync_spec_display(self):
+        if not hasattr(self, 'v_spec'):
+            return
+        self._spec_display = self._spec_text()
+        self.v_spec.set(self._spec_display)
+
+    def _commit_spec(self):
+        if not hasattr(self, 'v_spec') or self.v_spec.get() == self._spec_display:
+            return
+        if self.v_spec.get() == self._spec_text():
+            self._spec_display = self.v_spec.get()
+            return
+        raw = self.v_spec.get().strip().upper()
+        if not raw or raw == '不限':
+            self.v_class.set('')
+            self.v_rating.set('')
+        elif re.fullmatch(r'[0-8][A-I]', raw):
+            self.v_class.set(raw[0])
+            self.v_rating.set(raw[1])
+        else:
+            raise ValueError('规格请填写如 2C、5A，或选择不限')
+        self._sync_spec_display()
 
     def _toggle_fresh(self):
         """集成新鲜度显隐: ships/modules + 属于/等于/包含时显示。"""
         show = (self.type == "field" and self.kind == "stations"
                 and parse_field_label(self.field.get().strip()) in FRESH_FIELDS_ROWS
                 and self.op.get() in ("属于其一", "等于", "包含"))
-        for w in (self.lbl_fresh, self.cb_fresh):
+        if show:
+            self.subcontrols.pack(fill='x', pady=(3, 0))
+        else:
+            self.subcontrols.pack_forget()
+        for w in (self.lbl_fresh, self.cb_fresh, self.lbl_discount, self.cb_discount):
             if show:
                 w.pack(side="left", padx=(4, 0))
             else:
@@ -665,6 +743,7 @@ class Row:
             return
         # 枚举/文本类: 异步取候选
         kind = self.kind
+        slot = self.v_slot.get()
         self._seq += 1
         seq = self._seq
         self.opt_info.set("加载中…")
@@ -672,6 +751,9 @@ class Row:
 
         def work():
             opts = fo.get_options(kind, field)
+            if kind == 'stations' and field == 'modules':
+                from module_slots import options_for
+                opts = options_for(opts, slot)
             def apply():
                 if seq != self._seq or not self.frame.winfo_exists():
                     return
@@ -770,6 +852,8 @@ class Row:
         self._refresh_spec_options()
         if self.op.get() in ("属于其一", "等于", "包含"):
             try:
+                if f == 'modules':
+                    self._commit_spec()
                 for seg in [x.strip() for x in self.v_class.get().replace("，", ";").replace(",", ";").split(";") if x.strip()]:
                     eng.parse_module_class(seg, "等级")
                 for seg in [x.strip() for x in self.v_rating.get().replace("，", ";").replace(",", ";").split(";") if x.strip()]:
@@ -778,6 +862,12 @@ class Row:
                 self.opt_info.set(str(e)[:24])
                 self.lbl_opt["foreground"] = "red"
                 return
+            if f == 'modules' and re.fullmatch(r'[0-8][A-I]', self.v_spec.get()):
+                variants = fo.get_module_variants(segs)
+                if self.v_spec.get() not in variants:
+                    self.opt_info.set('未确认此规格，可手填查询')
+                    self.lbl_opt['foreground'] = 'orange'
+                    return
         self.opt_info.set(self._opt_base)
         self.lbl_opt["foreground"] = "gray"
 
@@ -812,9 +902,14 @@ class Row:
         if self.type == "distance":
             return dict(type="distance", ref=self.ref.get(), min=self.vmin.get(),
                         max=self.vmax.get(), mode=self.mode.get())
+        if hasattr(self, 'v_spec') and self.v_spec.get() == self._spec_display:
+            self._sync_spec_display()
         return dict(type="field", field=parse_field_label(self.field.get()), op=self.op.get(),
                     value=self.val.get(), **{"class": self.v_class.get(),
-                    "rating": self.v_rating.get(), "fresh": self.v_fresh.get()})
+                    "rating": self.v_rating.get(), "fresh": self.v_fresh.get(),
+                    "discount": self.v_discount.get(), 'module_slot': self.v_slot.get(),
+                    'condition_category': self.v_category.get(),
+                    'module_spec': self.v_spec.get() if hasattr(self, 'v_spec') else ''})
 
     def to_cond(self):
         if self.type == "distance":
@@ -827,6 +922,8 @@ class Row:
                     "min_ly": num(self.vmin.get()), "max_ly": num(self.vmax.get()),
                     "mode": "inside" if self.mode.get() == "范围内" else "outside"}
         f = parse_field_label(self.field.get().strip())
+        if f == 'modules':
+            self._commit_spec()
         op_label = self.op.get()
         op = OP_MAP[op_label]
         raw = self.val.get().strip().replace("，", ";").replace(",", ";")
@@ -836,6 +933,8 @@ class Row:
                     if x.strip()]
 
         def module_spec(d):
+            if f == 'modules' and self.v_slot.get() != '不限':
+                d['module_slot'] = self.v_slot.get()
             # 模块规格原文透传 (等级如 5/5级, 级别如 A), 引擎统一校验
             if f == "modules" and op in ("in", "=", "contains"):
                 rc = split_list(self.v_class.get())
@@ -849,6 +948,8 @@ class Row:
                 days = fresh_opt_days(self.v_fresh.get())
                 if days:
                     d["fresh_days"] = days
+                if self.kind == 'stations' and self.v_discount.get() == '是':
+                    d['discounted'] = True
             return d
 
         if op in ("true", "false"):
@@ -955,6 +1056,7 @@ class App:
         route_bar = ttk.Frame(root, padding=(6, 0, 6, 4))
         route_bar.pack(fill='x')
         ttk.Button(route_bar, text='中子星跳跃规划器', command=self.route_window).pack(side='left', padx=4)
+        ttk.Button(route_bar, text='工程师途中采购', command=self.engineer_shopping_window).pack(side='left', padx=4)
 
         self.hint_var = tk.StringVar(
             value="第三格可下拉/打字联想/点“选值…”多选 (选项≤30个直接下拉)。船/模块名打字联想+自动纠错，行内自带新鲜度选择。")
@@ -981,13 +1083,21 @@ class App:
         self.prog_pct = tk.StringVar(value="")
         ttk.Label(progfrm, textvariable=self.prog_pct, width=8).pack(side="left", padx=(4, 0))
 
-        cols = ("name", "place", "info", "extra")
-        self.tree = ttk.Treeview(root, columns=cols, show="headings", height=16)
-        for c, w, t in [("name", 220, "名称"), ("place", 180, "星系/位置"),
-                        ("info", 400, "关键信息"), ("extra", 260, "各参考点距离")]:
+        result_frame = ttk.Frame(root)
+        result_frame.pack(fill='both', expand=True, padx=6, pady=4)
+        self.tree = ttk.Treeview(result_frame, columns=('name', 'system'), show="headings", height=16)
+        for c, w, t in [("name", 220, "名称"), ("system", 180, "星系")]:
             self.tree.heading(c, text=t)
             self.tree.column(c, width=w)
-        self.tree.pack(fill="both", expand=True, padx=6, pady=4)
+        self.tree.grid(row=0, column=0, sticky='nsew')
+        vertical = ttk.Scrollbar(result_frame, orient='vertical', command=self.tree.yview)
+        vertical.grid(row=0, column=1, sticky='ns')
+        horizontal = ttk.Scrollbar(result_frame, orient='horizontal', command=self.tree.xview)
+        horizontal.grid(row=1, column=0, sticky='ew')
+        self.tree.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
+        result_frame.rowconfigure(0, weight=1)
+        result_frame.columnconfigure(0, weight=1)
+        self.localizer.register(self.render_main_results)
         copy_bar = ttk.Frame(root, padding=(6, 0, 6, 4))
         copy_bar.pack(fill='x')
         ttk.Button(copy_bar, text='复制名称', command=lambda: copy_result(root, self.tree, 'name')).pack(side='left')
@@ -1005,11 +1115,9 @@ class App:
 
     def copy_result_system(self):
         def system_name(item):
-            index = self.tree.index(item)
-            if index >= len(self.results):
-                return ''
-            row = self.results[index]
-            return row.get('system_name') or row.get('name') or ''
+            # View order can change independently of self.results.
+            column = 'system' if 'system' in self.tree['columns'] else 'name'
+            return self.tree.set(item, column)
         return copy_result(self.root, self.tree, getter=system_name)
 
     def refresh_fields(self):
@@ -1096,6 +1204,8 @@ class App:
         if c.get("field") == "modules":
             r.v_class.set("; ".join(str(v) for v in c.get("class", [])))
             r.v_rating.set("; ".join(str(v) for v in c.get("rating", [])))
+            from module_slots import SLOT_GROUPS
+            r.v_slot.set(c.get('module_slot') if c.get('module_slot') in SLOT_GROUPS else '不限')
         if c.get("field") in FRESH_FIELDS_ROWS and c.get("fresh_days"):
             try:
                 fd = int(c["fresh_days"])
@@ -1103,6 +1213,8 @@ class App:
                 fd = None
             inv_fresh = {v: k for k, v in FRESH_DAYS.items()}
             r.v_fresh.set(inv_fresh.get(fd, f"近{fd}天" if fd else "不限"))
+        if c.get('field') in FRESH_FIELDS_ROWS and isinstance(c.get('discounted'), bool):
+            r.v_discount.set('是' if c['discounted'] else '不限')
         r.refresh_options()
         self.rows.append(r)
 
@@ -1127,12 +1239,23 @@ class App:
                         if isinstance(saved.get(key), str):
                             variable.set(saved[key])
                 else:
+                    from field_categories import available_groups
+                    fields = STATION_FIELDS if self.kind.get() == 'stations' else SYSTEM_FIELDS
+                    category = saved.get('condition_category', '不限')
+                    if category in available_groups(fields):
+                        r.v_category.set(category)
+                        r.set_fields(self.kind.get())
                     r.field.set(field_label(self.kind.get(), str(saved.get("field") or "name")))
                     for variable, key in ((r.op, "op"), (r.val, "value"), (r.v_class, "class"),
-                                          (r.v_rating, "rating"), (r.v_fresh, "fresh")):
+                                          (r.v_rating, "rating"), (r.v_fresh, "fresh"),
+                                          (r.v_discount, 'discount'), (r.v_slot, 'module_slot')):
                         if isinstance(saved.get(key), str):
                             variable.set(saved[key])
                     r.refresh_options()
+                    if isinstance(saved.get('module_spec'), str) and hasattr(r, 'v_spec'):
+                        r.v_spec.set(saved['module_spec'])
+                    if r.v_discount.get() not in ('不限', '是'):
+                        r.v_discount.set('不限')
                 self.rows.append(r)
         else:
             for c in d.get("conditions", []):
@@ -1167,7 +1290,29 @@ class App:
         self.language.set("English" if language == "en" else "中文")
         self.localizer.set_language(language)
 
-    def bind_tool_state(self, key, window, variables):
+    def main_result_table(self):
+        from main_csv import export_table
+        return export_table(self.results, getattr(self, '_result_kind', self.kind.get()),
+                            getattr(self, '_result_conditions', []),
+                            self.localizer.language, self.localizer.tr)
+
+    def render_main_results(self):
+        if not hasattr(self, '_result_conditions') or not hasattr(self, 'tree'):
+            return
+        headers, records = self.main_result_table()
+        self.tree.delete(*self.tree.get_children())
+        keys = ['name'] + [f'value_{i}' for i in range(1, len(headers))]
+        if getattr(self, '_result_kind', '') == 'stations' and len(keys) > 1:
+            keys[1] = 'system'
+        self.tree.set_columns(keys)
+        for column, title in zip(keys, headers):
+            self.tree.heading(column, text=title)
+            self.tree.column(column, width=220 if column in ('name', 'system') else 180,
+                             minwidth=80, stretch=False)
+        for values in records:
+            self.tree.insert('', 'end', values=values)
+
+    def bind_tool_state(self, key, window, variables, before_collect=None):
         """统一保存辅助窗口；关子窗口和关主窗口都能保存当前参数。"""
         saved = self._tool_states.get(key, {})
         for name, variable in variables.items():
@@ -1177,7 +1322,10 @@ class App:
                     variable.set(value)
             elif isinstance(value, str):
                 variable.set(value)
-        collector = lambda: {name: variable.get() for name, variable in variables.items()}
+        def collector():
+            if before_collect is not None:
+                before_collect()
+            return {name: variable.get() for name, variable in variables.items()}
         self._tool_collectors[key] = collector
         window.session_variables = variables
 
@@ -1266,6 +1414,8 @@ class App:
         self.prog_pct.set("准备中")
         self.results = []
         self.tree.delete(*self.tree.get_children())
+        self._result_conditions = conds
+        self._result_kind = kind
 
         def work():
             try:
@@ -1282,9 +1432,6 @@ class App:
                 for r in rows:
                     fo.learn_module_specs(r.get("modules"))
                 fo.save_module_specs()
-                fixes = dict(corr)
-                dist_refs = list(dict.fromkeys(fixes.get(c["ref_system"], c["ref_system"])
-                                              for c in conds if c.get("type") == "distance"))
                 # 把纠正应用回界面条件 (距离参考点 + 船/模块值段落), 展示用纠正后的值
                 for old, new in corr:
                     for c in conds:
@@ -1296,40 +1443,11 @@ class App:
                                            for v in c["values"]]
                         elif isinstance(c.get("text"), str) and c["text"].casefold() == old.casefold():
                             c["text"] = new
-                wanted_ships = set()
-                for c in conds:
-                    if c.get("type") == "distance":
-                        continue
-                    if c.get("field") == "ships" and c.get("op") in ("in", "="):
-                        vals = c.get("values", []) if c["op"] == "in" else [c.get("text", "")]
-                        wanted_ships.update(str(v).casefold() for v in vals)
                 # 展示用归一化副本 (规格解析为整数/大写, 与引擎口径一致)
                 try:
                     dconds = eng.normalize_conditions(kind, conds)
                 except (ValueError, eng.Contradiction):
                     dconds = conds
-                mod_conds = [c for c in dconds
-                             if c.get("type") != "distance" and c.get("field") == "modules"
-                             and c.get("op") in ("in", "=")]
-
-                def mod_tags(row):
-                    """在售模块 -> [(小写名, 展示名, 等级, 级别)]。"""
-                    out = []
-                    for it in row.get("modules") or []:
-                        if not isinstance(it, dict) or not it.get("name"):
-                            continue
-                        try:
-                            cls = int(it.get("class"))
-                        except (TypeError, ValueError):
-                            cls = None
-                        rat = str(it.get("rating") or "").upper() or None
-                        disp = str(it["name"])
-                        if cls is not None:
-                            disp += f" {cls}"
-                        if rat:
-                            disp += rat
-                        out.append((str(it["name"]).casefold(), disp, cls, rat))
-                    return out
 
                 def show():
                     for old, new in corr:
@@ -1348,59 +1466,8 @@ class App:
                                     rr.val.set("; ".join(
                                         new if p.strip().casefold() == old.casefold() else p.strip()
                                         for p in parts if p.strip()))
-                    for r in rows:
-                        if kind == "stations":
-                            extra = ", ".join(
-                                f"{ref}:{format_ly(r.get('_distances', {}).get(ref), '?')}ly"
-                                for ref in dist_refs)
-                            actual_ships = eng._names(r.get("ships"), "ships")
-                            actual_mods = eng._names(r.get("modules"), "modules")
-                            tags = mod_tags(r)
-                            if wanted_ships or mod_conds:
-                                hit = [n for n in actual_ships if n.casefold() in wanted_ships]
-                                for c in mod_conds:
-                                    names = {str(v).casefold()
-                                             for v in (c.get("values", []) if c["op"] == "in"
-                                                       else [c.get("text", "")])}
-                                    classes = set(c.get("class") or [])
-                                    ratings = {str(v).upper() for v in (c.get("rating") or [])}
-                                    for low, disp, cls, rat in tags:
-                                        if low in names and (not classes or cls in classes) \
-                                                and (not ratings or rat in ratings):
-                                            hit.append(disp)
-                                hit = list(dict.fromkeys(hit))
-                                if not hit:
-                                    # 服务端精确下推但行内缺明细: 显示条件原文+规格
-                                    fb = sorted(wanted_ships)
-                                    for c in mod_conds:
-                                        spec = eng.module_spec_suffix(c)
-                                        vals = c.get("values", []) if c["op"] == "in" \
-                                            else [c.get("text", "")]
-                                        fb.extend(f"{v}{spec}" for v in vals)
-                                    hit = sorted(set(fb))
-                                sell = "卖:" + "、".join(hit[:3])
-                                if len(hit) > 3:
-                                    sell += f"等{len(hit)}项"
-                            else:
-                                sell = f"在售{len(actual_ships)}船/{len(actual_mods)}模块"
-                            self.tree.insert("", "end", values=(
-                                r.get("name"), r.get("system_name"),
-                                f"{r.get('type')} | {r.get('primary_economy')} | "
-                                f"{format_ls(r.get('distance_to_arrival'), '?')}ls | "
-                                f"市场{r.get('has_market')}/船厂{r.get('has_shipyard')} | "
-                                f"{sell} | 船厂{data_age(r.get('shipyard_updated_at'))}/"
-                                f"改装{data_age(r.get('outfitting_updated_at'))}",
-                                extra))
-                        else:
-                            extra = ", ".join(
-                                f"{ref}:{format_ly(r.get('_distances', {}).get(ref), '?')}ly"
-                                for ref in dist_refs)
-                            from system_filters import summary
-                            detail = summary(r)
-                            self.tree.insert("", "end", values=(
-                                r.get("name"), f"pop {format_population(r.get('population'), '?')}",
-                                f"{r.get('allegiance')} | {r.get('primary_economy')} | "
-                                f"{r.get('security')}" + (f' | {detail}' if detail else ''), extra))
+                    self._result_conditions = dconds
+                    self.render_main_results()
                     msg = f"服务器候选计数 {total:,}, 已复核 {scanned:,} 条, 命中 {len(rows):,} 条"
                     if corr:
                         msg += "；" + "、".join(f"'{a}'→'{b}'" for a, b in corr) + "已自动纠正"
@@ -1508,6 +1575,10 @@ class App:
         from colonisation_gui import open_window
         return open_window(self)
 
+    def engineer_shopping_window(self):
+        from engineer_shopping_gui import open_window
+        return open_window(self)
+
     def carrier_parking_window(self):
         win = Toplevel(self.root)
         win.title("航母车位查找")
@@ -1576,8 +1647,10 @@ class App:
             if path:
                 with open(path, "w", newline="", encoding="utf-8-sig") as f:
                     writer = csv.writer(f)
+                    write_csv_provenance(writer, len(columns), self.localizer.language)
                     writer.writerow([self.localizer.tr(title) for _, _, title in columns])
-                    writer.writerows(tree.item(i, "values") for i in tree.get_children())
+                    writer.writerows([self.localizer.tr(value) for value in tree.item(i, "values")]
+                                     for i in tree.get_children())
 
         def run():
             try:
@@ -1752,14 +1825,12 @@ class App:
                                          filetypes=[("CSV", "*.csv")])
         if not p:
             return
+        headers, records = self.main_result_table()
         with open(p, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f)
-            w.writerow(["name", "system", "detail", "distances_json", "raw_json"])
-            for r in self.results:
-                w.writerow([r.get("name"), r.get("system_name") or r.get("name"),
-                            f"{r.get('type', '')} {r.get('primary_economy', '')}",
-                             json.dumps({ref: format_ly(distance) for ref, distance in r.get("_distances", {}).items()}, ensure_ascii=False),
-                             json.dumps(r, ensure_ascii=False)])
+            write_csv_provenance(w, len(headers), self.localizer.language)
+            w.writerow(headers)
+            w.writerows(records)
         self.status.set(f"已导出 {p}")
 
 

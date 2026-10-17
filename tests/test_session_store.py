@@ -25,11 +25,15 @@ class EditorRow(gui.Row):
         self.frame = Mock()
         self.frame.winfo_exists.return_value = True
         for name, value in dict(ref="Sol", vmin="", vmax="50", mode="范围内", field="name",
-                                op="属于其一", val="", v_class="", v_rating="", v_fresh="不限").items():
+                                op="属于其一", val="", v_class="", v_rating="", v_fresh="不限",
+                                v_discount='不限', v_slot='不限', v_category='不限').items():
             setattr(self, name, Value(value))
 
     def refresh_options(self):
         pass
+
+    def set_fields(self, kind):
+        self.kind = kind
 
 
 def app_fixture():

@@ -147,7 +147,8 @@ class LocalizedGuiTests(unittest.TestCase):
                         unexpected.append(text)
             for child in widget.winfo_children():
                 if isinstance(child, gui.ttk.Treeview) and 'ls' in child['columns']:
-                    self.assertEqual(tuple(child['columns']), ('power', 'system', 'station', 'ly', 'ls', 'age'))
+                    self.assertEqual(tuple(child['displaycolumns']), ('power', 'system', 'station', 'ly', 'ls', 'age'))
+                    self.assertEqual(tuple(child['columns'])[:6], ('power', 'system', 'station', 'ly', 'ls', 'age'))
                 scan(child)
         scan(self.root)
         self.assertEqual(unexpected, [])
@@ -158,6 +159,7 @@ class LocalizedGuiTests(unittest.TestCase):
         self.assertEqual(label.cget('text'), 'Ready')
         label['text'] = '查询失败'
         self.assertEqual(label.cget('text'), 'Search failed')
+        self.app.tree.set_columns(('name', 'status', 'permit', 'extra'))
         item = self.app.tree.insert('', 'end', values=('Sol', '未知', '免许可', ''))
         self.assertEqual(self.app.tree.item(item, 'values')[1], 'Unknown')
         self.app.set_language('zh')
@@ -220,8 +222,12 @@ class LocalizedGuiTests(unittest.TestCase):
                 button('Export CSV').invoke()
             with output.open(encoding='utf-8-sig', newline='') as file:
                 rows = list(csv.reader(file))
-            self.assertEqual(rows[0][0], 'Mission source')
-            self.assertEqual(rows[1][:4], ['Alpha', 'Target', '20.00', 'RES Low'])
+            self.assertEqual(rows[6][0], 'Mission source')
+            self.assertEqual(rows[7][:4], ['Alpha', 'Target', '20.00', 'RES Low'])
+            from test_export_metadata import assert_provenance
+            assert_provenance(self, rows, len(rows[0]))
+            from test_export_metadata import assert_english_csv
+            assert_english_csv(self, rows)
         self.app.set_language('zh')
 
     def test_pve_refresh_and_chunked_render_real_ui(self):

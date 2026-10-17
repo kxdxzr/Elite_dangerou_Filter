@@ -345,7 +345,7 @@ class SearchTests(unittest.TestCase):
                 {"name": "测试模块ZZZ", "class": 5, "rating": "B"},
                 {"name": "测试模块ZZZ", "class": "bad", "rating": ""},
                 {"name": "", "class": 2}, {"nope": 1}, None])
-            self.assertEqual(added, 4)
+            self.assertEqual(added, 6)  # Four marginals plus two actual pairs.
             self.assertEqual(fo.get_module_specs("测试模块zzz"), ([3, 5], ["A", "B"]))
             self.assertEqual(fo.get_module_classes("测试模块ZZZ"), ["3", "5"])
             self.assertEqual(fo.get_module_ratings("测试模块ZZZ"), ["A", "B"])

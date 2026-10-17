@@ -126,12 +126,20 @@ class ColonisationGuiTests(unittest.TestCase):
                 patch('builtins.open', output):
             next(b for b in buttons if b._raw_text == '导出CSV').invoke()
         written = ''.join(c.args[0] for c in output().write.call_args_list)
-        self.assertTrue(written.startswith('name,scan1,scan2,scan3,neighbour,near_distance,neighbour_pad,distance,estimated_mapping_value,'))
+        self.assertTrue(written.startswith('# GitHub project author,'))
+        self.assertIn('name,scan1,scan2,scan3,neighbour,near_distance,neighbour_pad,distance,estimated_mapping_value,', written)
         self.assertNotIn(',population,', written)
         self.assertIn('near_distance,neighbour_pad', written)
         self.assertIn('55,000 Cr', written)
         self.assertIn('"1,234.57"', written)
         self.assertIn('"1,234,567"', written)
+        import csv
+        import io
+        from test_export_metadata import assert_provenance
+        exported = list(csv.reader(io.StringIO(written)))
+        assert_provenance(self, exported, len(exported[0]))
+        from test_export_metadata import assert_english_csv
+        assert_english_csv(self, exported)
         self.assertEqual(row['_neighbour_distance'], 4.41789)
 
 

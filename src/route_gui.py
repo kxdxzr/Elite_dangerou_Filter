@@ -7,6 +7,7 @@ from tkinter import filedialog, simpledialog
 
 from localized_tk import ttk, messagebox, Toplevel
 from result_copy import copy_result
+from result_format import format_ly
 from search_progress import SearchProgress
 import route_ship
 import route_tool as tool
@@ -28,6 +29,8 @@ def open_window(app):
         ('supercharge', True), ('already_supercharged', False), ('exclude_secondary', False), ('refuel_every_scoopable', False))}
     stop, events = threading.Event(), queue.Queue()
     state = {'busy': False, 'info': None, 'points': []}
+    preview = {'generation': 0, 'identity': None, 'params': None, 'error': '', 'fsds': None}
+    preview_lock, preview_closed = threading.Lock(), threading.Event()
 
     ships = ttk.LabelFrame(win, text='舰船配置收藏', padding=6)
     ships.pack(fill='x', padx=8, pady=6)
@@ -127,6 +130,68 @@ def open_window(app):
     ttk.Label(win, text='收藏仅保存在本地；开始规划后，舰船配置和航点将发送至 Spansh。首次解析需要联网获取 FSD 数据。',
               wraplength=1360, foreground='gray').pack(fill='x', padx=8)
 
+    summary = ttk.LabelFrame(win, text='所选舰船与跳跃属性', padding=6)
+    summary.pack(fill='x', padx=8, pady=4)
+    identity_text, range_text = (tk.StringVar(win) for _ in range(2))
+    for variable in (identity_text, range_text):
+        ttk.Label(summary, textvariable=variable, wraplength=1350).pack(fill='x')
+    ttk.Label(summary, text='理论单跳：主油箱与备用油箱满油，使用当前货物质量，不含注入；不代表当前位置可中子增压，实际路线受储备燃油等设置限制。',
+              foreground='gray', wraplength=1350).pack(fill='x')
+
+    def render_preview():
+        identity = preview['identity']
+        if not identity:
+            identity_text.set(tr('请先选择舰船配置'))
+        else:
+            identity_text.set('   |   '.join(f"{tr(label)}: {identity[key] or tr('情况未知')}" for label, key in
+                                           (('船型', 'model'), ('舰船名称', 'name'))))
+        params = preview['params']
+        if preview['error']:
+            range_text.set(tr('无法计算跳跃属性') + ': ' + tr(preview['error']))
+        elif params is None:
+            range_text.set(tr('正在读取跳跃属性…') if identity else '')
+        else:
+            try:
+                values = route_ship.jump_attributes(params, cargo.get())
+                range_text.set(f"{tr('普通满油跳距')}: {format_ly(values['normal_range'])} ly   |   "
+                               f"{tr('中子增压后跳距')}: {format_ly(values['neutron_range'])} ly")
+            except (ValueError, TypeError, KeyError) as exc:
+                range_text.set(tr('无法计算跳跃属性') + ': ' + tr(str(exc)))
+
+    def refresh_preview(*_):
+        preview['generation'] += 1
+        generation = preview['generation']
+        preview.update(identity=None, params=None, error='')
+        try:
+            raw = store.load().get(selected.get())
+            if raw is not None:
+                preview['identity'] = route_ship.ship_identity(raw)
+        except (OSError, ValueError, TypeError) as exc:
+            preview['error'] = str(exc)
+            raw = None
+        render_preview()
+        if raw is None:
+            return
+
+        def worker():
+            try:
+                # Share one catalogue load and ignore obsolete queued selections.
+                with preview_lock:
+                    if preview_closed.is_set() or generation != preview['generation']:
+                        return
+                    if preview['fsds'] is None:
+                        preview['fsds'] = route_ship.catalog(tool.http_json)
+                    fsds = preview['fsds']
+                params = route_ship.parse_ship(raw, fsds)
+                events.put(('preview', (generation, params, '')))
+            except Exception as exc:
+                events.put(('preview', (generation, None, str(exc))))
+        threading.Thread(target=worker, daemon=True).start()
+
+    selected_trace = selected.trace_add('write', refresh_preview)
+    cargo_trace = cargo.trace_add('write', lambda *_: render_preview())
+    app.localizer.register(render_preview)
+
     endpoints = ttk.Frame(win, padding=8)
     endpoints.pack(fill='x')
     from filter_gui import attach_system_suggest
@@ -141,7 +206,8 @@ def open_window(app):
     box = ttk.Combobox(points_frame, textvariable=waypoint, width=35)
     box.grid(row=0, column=0, sticky='w')
     attach_system_suggest(box, waypoint)
-    points = ttk.Treeview(points_frame, columns=('order', 'name'), show='headings', height=3, selectmode='browse')
+    points = ttk.Treeview(points_frame, columns=('order', 'name'), show='headings', height=3,
+                          selectmode='browse', sortable=False)
     points.heading('order', text='序号')
     points.heading('name', text='星系')
     points.column('order', width=55, stretch=False)
@@ -281,7 +347,7 @@ def open_window(app):
         path = filedialog.asksaveasfilename(parent=win, defaultextension='.csv', filetypes=[('CSV', '*.csv')])
         if path:
             try:
-                tool.export_csv(path, info, app.localizer.tr)
+                tool.export_csv(path, info, app.localizer.tr, language=app.localizer.language)
             except OSError as exc:
                 error(exc)
 
@@ -299,7 +365,12 @@ def open_window(app):
         try:
             while True:
                 event, result = events.get_nowait()
-                if event == 'progress':
+                if event == 'preview':
+                    generation, params, failure = result
+                    if generation == preview['generation']:
+                        preview.update(params=params, error=failure)
+                        render_preview()
+                elif event == 'progress':
                     text, detail = result
                     status.set(text)
                     tracker.update(text, detail)
@@ -316,13 +387,19 @@ def open_window(app):
     def dispose(event):
         if event.widget is win:
             stop.set()
+            preview_closed.set()
+            selected.trace_remove('write', selected_trace)
+            cargo.trace_remove('write', cargo_trace)
+            app.localizer.callbacks.discard(render_preview)
             app.localizer.callbacks.discard(render_results)
             if poll_id is not None:
                 win.after_cancel(poll_id)
     win.bind('<Destroy>', dispose, add='+')
     poll_id = win.after(100, poll)
     win.route_state, win.result_tree, win.waypoint_tree = state, tree, points
-    win.route_variables = dict(source=source, destination=destination, waypoint=waypoint, selected=selected)
+    win.route_variables = dict(source=source, destination=destination, waypoint=waypoint, selected=selected, cargo=cargo)
+    win.ship_preview = preview
+    win.ship_summary_variables = dict(identity=identity_text, ranges=range_text)
     win.build_editor, win.reload_favorites = editor, reload_favorites
     reload_favorites()
     return win

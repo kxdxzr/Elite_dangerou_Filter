@@ -13,6 +13,8 @@ POWER_LABELS = {p: p for p in POWERS}
 POWER_LABELS["A. Lavigny-Duval"] = "Arissa Lavigny-Duval"
 STATE_NOTE = "Spansh Unoccupied；未区分 Expansion / Contested，合并关系尚未样本验证。"
 MAX_RESULTS_PER_POWER = 5
+# Position-based estimates using neutron anchors within 200 ly of the source.
+ENABLE_NEUTRON_FILTER = True
 
 
 def normalize_power(value):
@@ -66,12 +68,15 @@ def _eligible(row, arrival):
 
 
 def search_powerplay(reference="Ngurii", power="A. Lavigny-Duval", all_powers=False,
-                     min_ly=200, max_ly=220, max_pages=20, progress=None, stop=None):
+                     min_ly=200, max_ly=220, max_pages=20, progress=None, stop=None,
+                     neutron_filter=None):
     """返回 (info, groups)。每组仅标准结果或回退结果；未取完不推断无命中。
 
     全势力使用势力并集查询，按行关联势力分组；空组在标准分页完成后批量回退。
-    每轮每页500条，max_pages分别约束标准和回退轮。每组先按ly、再按Ls排序，最多返回5站。
+    每轮每页500条，max_pages分别约束标准和回退轮。同星系合并，每组最多返回5个星系。
     """
+    if neutron_filter is not None and not ENABLE_NEUTRON_FILTER:
+        raise ValueError('稀有商品中子省跳筛选已暂停')
     reference = str(reference or "").strip()
     if not reference:
         raise ValueError("请填写参考星系")
@@ -82,10 +87,15 @@ def search_powerplay(reference="Ngurii", power="A. Lavigny-Duval", all_powers=Fa
         raise ValueError("每轮最多页数必须是正整数")
     selected = list(POWERS) if all_powers else [normalize_power(power)]
     groups = {p: dict(power=p, rows=[], arrival_limit=100, complete=False, status="未完成",
-                      station_count=0, system_count=0, shown_count=0)
+                      system_count=0, shown_count=0)
               for p in selected}
     info = dict(reference=reference, min_ly=lo, max_ly=hi, scanned=0,
-                complete=False, notes=[], corrections=[], state_note=STATE_NOTE, unverifiable=0)
+                 complete=False, notes=[], corrections=[], state_note=STATE_NOTE, unverifiable=0)
+    comparisons = {}
+    if neutron_filter is not None:
+        from rare_neutron import NOTE
+        info.update(neutron_filter=True, neutron_unknown=0, neutron_compared=0)
+        info['notes'].append(NOTE)
 
     def cancelled():
         return stop is not None and stop.is_set()
@@ -105,8 +115,19 @@ def search_powerplay(reference="Ngurii", power="A. Lavigny-Duval", all_powers=Fa
         info["notes"].append(f"{prefix}：" + "；".join(notes))
         info["corrections"].extend(corrections)
         info["reference"] = dict(corrections).get(info["reference"], info["reference"])
-        unverifiable = 0
+        unverifiable, route_unknown = 0, False
+        if neutron_filter is not None:
+            def route_order(row):
+                distance = eng._num(row.get('distance'))
+                if distance is None or not math.isfinite(distance):
+                    distance = eng._num(next(iter(row.get('_distances', {}).values()), None))
+                return (distance if distance is not None and math.isfinite(distance) else float('inf'),
+                        eng._num(row.get('distance_to_arrival')) or 0)
+            rows.sort(key=route_order)
         for row in rows:
+            if cancelled():
+                route_unknown = True
+                break
             if _is_colonisation_ship(row):
                 # 明确不合格，而非数据未知；不能阻止空组触发1000 Ls回退。
                 continue
@@ -115,8 +136,39 @@ def search_powerplay(reference="Ngurii", power="A. Lavigny-Duval", all_powers=Fa
             if not _eligible(row, arrival) or not matched:
                 unverifiable += 1
                 continue
+            comparison = None
+            if neutron_filter is not None:
+                destination = str(row.get('system_name') or '').strip()
+                key = destination.casefold()
+                if key not in comparisons:
+                    try:
+                        if not destination:
+                            comparisons[key] = dict(status='unknown', reason='缺少目的地星系名')
+                        elif hasattr(neutron_filter, 'evaluate'):
+                            comparisons[key] = neutron_filter.evaluate(
+                                info['reference'], destination, eng.get_system_coords(info['reference']),
+                                eng.result_coords('stations', row))
+                        else:
+                            comparisons[key] = neutron_filter(info['reference'], destination)
+                    except InterruptedError:
+                        route_unknown = True
+                        break
+                    answer = comparisons[key]
+                    info['neutron_compared'] = getattr(neutron_filter, 'evaluated', len(comparisons))
+                    if answer.get('status') not in ('candidate', 'saving', 'not_proven'):
+                        info['neutron_unknown'] += 1
+                        if info['neutron_unknown'] <= 5:
+                            info['notes'].append(destination + ': ' + str(answer.get('reason', '无法评估')))
+                comparison = comparisons[key]
+                if comparison.get('status') not in ('candidate', 'saving', 'not_proven'):
+                    route_unknown = True
+                    continue
+                if comparison['status'] not in ('candidate', 'saving'):
+                    continue
             for p in matched:
                 item = dict(row)
+                if comparison is not None:
+                    item['_neutron'] = dict(comparison)
                 item["_powerplay_distance"] = next(iter(row.get("_distances", {}).values()), None)
                 raw_distance = eng._num(row.get("distance"))
                 item["_powerplay_sort_distance"] = (raw_distance
@@ -126,16 +178,23 @@ def search_powerplay(reference="Ngurii", power="A. Lavigny-Duval", all_powers=Fa
                 groups[p]["rows"].append(item)
         info["unverifiable"] += unverifiable
         # 缺少关键字段不能据此确认无结果，也不能触发距离回退。
-        complete = ("候选分页已取完" in notes and not unverifiable
+        complete = ("候选分页已取完" in notes and not unverifiable and not route_unknown and not cancelled()
                     and not any("缺少本地复核字段" in n for n in notes))
         for p in powers:
             group = groups[p]
+            if neutron_filter is not None and group['rows']:
+                tier = min(r['_neutron'].get('alignment_tier', 0) for r in group['rows'])
+                group['rows'] = [r for r in group['rows'] if r['_neutron'].get('alignment_tier', 0) == tier]
+                group['alignment_tier'] = tier
+                group['alignment_label'] = group['rows'][0]['_neutron'].get('alignment_label', '优先顺路')
             group.update(arrival_limit=arrival, complete=complete)
             group["status"] = ("标准范围" if arrival == 100 else "放宽范围") if group["rows"] else "无结果"
             if not complete:
                 group["status"] += "（未完成）" if group["rows"] else ""  # 空组始终标为未完成
                 if not group["rows"]:
                     group["status"] = "未完成"
+            if group.get('alignment_label'):
+                group['status'] += ' / ' + group['alignment_label']
         return complete
 
     if cancelled():
@@ -149,14 +208,27 @@ def search_powerplay(reference="Ngurii", power="A. Lavigny-Duval", all_powers=Fa
         for p in empty:
             groups[p].update(complete=False, status="未完成")
     for group in groups.values():
+        # A destination is a system, not a station. Keep its nearest eligible
+        # station as a reference only; deduplicate before applying the five cap.
+        unique = {}
+        for row in group['rows']:
+            key = str(row.get('system_name') or row.get('system_id64') or '').strip().casefold()
+            previous = unique.get(key)
+            if previous is None or (eng._num(row.get('distance_to_arrival')) or 0,
+                                    row.get('name', '')) < (eng._num(previous.get('distance_to_arrival')) or 0,
+                                                           previous.get('name', '')):
+                unique[key] = row
+        group['rows'] = list(unique.values())
         group["rows"].sort(key=lambda r: (r.get("_powerplay_sort_distance")
                                           if r.get("_powerplay_sort_distance") is not None else float("inf"),
                                           eng._num(r.get("distance_to_arrival")) or 0,
                                           r.get("system_name", ""), r.get("name", "")))
-        group["station_count"] = len(group["rows"])
-        group["system_count"] = len({r.get("system_id64") or r.get("system_name")
-                                     for r in group["rows"]})
+        group["system_count"] = len(group["rows"])
         group["rows"] = group["rows"][:MAX_RESULTS_PER_POWER]
         group["shown_count"] = len(group["rows"])
     info["complete"] = all(g["complete"] for g in groups.values())
+    if neutron_filter is not None and info['neutron_unknown']:
+        info['notes'].append(f"中子路线无法评估或未评估：{info['neutron_unknown']:,} 个目的地；不代表不省跳。")
+    if neutron_filter is not None and cancelled():
+        info['notes'].append('已停止中子评估；仅保留已完成比较的目的地。')
     return info, groups

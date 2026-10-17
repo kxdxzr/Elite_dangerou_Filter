@@ -1,5 +1,6 @@
 """Editable existential body/ring groups; worker threads never call Tk."""
 import csv
+from export_metadata import write_csv_provenance
 import json
 import queue
 import re
@@ -308,6 +309,7 @@ def open_window(app):
             try:
                 with open(path, 'w', newline='', encoding='utf-8-sig') as file:
                     writer = csv.writer(file)
+                    write_csv_provenance(writer, len(columns), app.localizer.language)
                     writer.writerow([state['info']['value_field'] if key == 'value' else key for key, _ in columns])
                     writer.writerows(values(row) for row in state['rows'])
             except OSError as exc:

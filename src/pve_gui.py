@@ -1,5 +1,6 @@
 """PvE search GUI; all Tk work stays on the main thread."""
 import csv
+from export_metadata import write_csv_provenance
 from result_format import format_ly, format_ls, format_number
 from result_copy import copy_result
 import threading
@@ -244,9 +245,10 @@ def open_window(app):
         if path:
             with open(path, 'w', encoding='utf-8-sig', newline='') as file:
                 writer = csv.writer(file)
+                write_csv_provenance(writer, len(columns), app.localizer.language)
                 writer.writerow([app.localizer.tr(label) for _, label in columns])
                 writer.writerows([app.localizer.tr(result_value(row, key))
-                                  for key, _ in columns] for row in state['rows'])
+                                   for key, _ in columns] for row in state['rows'])
 
     def copy_target(event=None):
         copy_system(1)

@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -9,6 +10,7 @@ from unittest.mock import patch
 
 from test_route_tool import build, FSDS, Server
 import route_tool as tool
+import route_ship
 
 
 @unittest.skipUnless(sys.platform == 'win32' or os.environ.get('DISPLAY'), 'Requires a GUI display')
@@ -20,17 +22,84 @@ class RouteGuiTests(unittest.TestCase):
         self.store = tool.Favorites(str(Path(self.directory.name) / 'ships.json'))
         self.factory = patch.object(tool, 'Favorites', return_value=self.store)
         self.factory.start()
+        self.catalog = patch.object(route_ship, 'catalog', return_value=FSDS)
+        self.catalog.start()
 
     def tearDown(self):
         from test_colonisation_gui import ColonisationGuiTests
         ColonisationGuiTests.tearDown(self)
         self.factory.stop()
+        self.catalog.stop()
         self.directory.cleanup()
 
     def widgets(self, parent):
         for child in parent.winfo_children():
             yield child
             yield from self.widgets(child)
+
+    def wait_for(self, condition):
+        deadline = time.monotonic() + 4
+        while not condition() and time.monotonic() < deadline:
+            self.root.update()
+            time.sleep(.02)
+        self.assertTrue(condition())
+
+    def test_selection_shows_identity_ranges_cargo_and_language(self):
+        data = build()
+        data['data'].update(Ship='asp', ShipName='Explorer One', ShipIdent='AB-12')
+        self.store.put('First', json.dumps(data))
+        win = self.app.route_window()
+        self.wait_for(lambda: win.ship_preview['params'] is not None)
+        texts = win.ship_summary_variables
+        self.assertIn('Asp Explorer', texts['identity'].get())
+        self.assertIn('Explorer One', texts['identity'].get())
+        self.assertNotIn('AB-12', texts['identity'].get())
+        self.assertIn('普通满油跳距', texts['ranges'].get())
+        self.assertNotIn('×', texts['ranges'].get())
+        self.assertEqual(set(texts), {'identity', 'ranges'})
+        before = texts['ranges'].get()
+        win.route_variables['cargo'].set('25')
+        self.assertNotEqual(before, texts['ranges'].get())
+        win.route_variables['cargo'].set('bad')
+        self.assertIn('无法计算', texts['ranges'].get())
+        win.route_variables['cargo'].set('0')
+        self.app.set_language('en')
+        self.assertIn('Normal full-tank range', texts['ranges'].get())
+        self.assertIn('Neutron-supercharged range', texts['ranges'].get())
+        self.assertIn('Explorer One', texts['identity'].get())
+        self.assertEqual(self.store.load()['First'], json.dumps(data))
+        win.route_variables['selected'].set('missing')
+        self.assertEqual(texts['ranges'].get(), '')
+
+    def test_preview_failure_and_late_result_do_not_show_wrong_ship(self):
+        first, second = build(), build()
+        first['data'].update(Ship='asp', UnladenMass=300)
+        second['data'].update(Ship='mandalay', UnladenMass=200)
+        self.store.put('First', json.dumps(first))
+        self.store.put('Second', json.dumps(second))
+        started, release = threading.Event(), threading.Event()
+        parse = route_ship.parse_ship
+        def delayed(raw, fsds):
+            if json.loads(raw)['data']['Ship'] == 'asp':
+                started.set()
+                release.wait(4)
+            return parse(raw, fsds)
+        with patch.object(route_ship, 'parse_ship', side_effect=delayed):
+            win = self.app.route_window()
+            try:
+                self.wait_for(started.is_set)
+                win.route_variables['selected'].set('Second')
+                self.wait_for(lambda: win.ship_preview['params'] is not None)
+                self.assertEqual(win.ship_preview['params']['base_mass'], 200.63)
+            finally:
+                release.set()
+        self.wait_for(lambda: 'Mandalay' in win.ship_summary_variables['identity'].get())
+        win.route_variables['selected'].set('First')
+        self.wait_for(lambda: win.ship_preview['params'] is not None and win.ship_preview['params']['base_mass'] == 300.63)
+        with patch.object(route_ship, 'parse_ship', side_effect=ValueError('Unsupported FSD')):
+            win.route_variables['selected'].set('Second')
+            self.wait_for(lambda: bool(win.ship_preview['error']))
+        self.assertIn('Unsupported FSD', win.ship_summary_variables['ranges'].get())
 
     def test_build_editor_waypoint_order_and_bilingual_results(self):
         win = self.app.route_window()

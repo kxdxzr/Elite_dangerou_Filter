@@ -387,6 +387,12 @@ def normalize_conditions(kind, conditions):
                 if fd < 1:
                     raise ValueError(f"{flabel}天数必须是正整数")
                 c["fresh_days"] = fd
+            if c.get('discounted') is not None:
+                if (kind != 'stations' or c.get('field') not in ('ships', 'modules')
+                        or op not in ('in', '=', 'contains') or not isinstance(c['discounted'], bool)):
+                    raise ValueError('折扣仅支持出售舰船／模组的属于其一、等于或包含条件，值必须为布尔值')
+                if c['discounted'] is False:
+                    c.pop('discounted')  # Legacy unfinished UI: no longer a "No" restriction.
             keys = ("min", "max") if numeric and op in ("between", "outside") else ()
         for key in keys:
             raw = c.get(key)
@@ -450,6 +456,9 @@ def plan_server_filters(kind, conditions):
             local_only += 1
             continue
         f, op = c["field"], c["op"]
+        if c.get('discounted') is not None:
+            local_only += 1
+            notes.append('折扣按势力／地点已知规则核对同件商品；未确认规则不命中，不含个人优惠')
         sf = _server_name(kind, f)
         st = _server_type(kind, sf)
         if st is None:
@@ -712,10 +721,32 @@ def _match_module_item(raw, cond, op):
     return False
 
 
+def matching_sale_items(kind, row, cond):
+    """Return same-item name/specification/discount matches and their evidence."""
+    field = cond['field']
+    from station_discounts import discount_info
+    basic = dict(cond)
+    basic.pop('discounted', None)
+    basic.pop('fresh_days', None)
+    for item in field_raw(kind, row, field) or []:
+        info = discount_info(row, item, field)
+        if cond.get('discounted') is True and info['discounted'] is not True:
+            continue
+        single = dict(row, **{_server_name(kind, field): [item]})
+        if match_field(kind, single, basic):
+            yield item, info
+
+
 def match_field(kind, row, cond):
     """单个普通条件, cond: {field, op, values/min/max/text}."""
     f, op = cond["field"], cond["op"]
     raw = field_raw(kind, row, f)
+    if cond.get('discounted') is not None:
+        if f not in ('ships', 'modules') or op not in ('in', '=', 'contains'):
+            return False
+        if cond.get('fresh_days') and not fresh_ok(row, FRESH_TS_KEY[f], cond['fresh_days']):
+            return False
+        return next(matching_sale_items(kind, row, cond), None) is not None
 
     if _server_type(kind, _server_name(kind, f)) == "numeric" and op in ("=", "!=", "in", "not in"):
         number = _num(raw)
@@ -869,7 +900,7 @@ def match_candidate(kind, row, conditions, coord_cache, filters, missing):
                 positive = [x for x in conditions if x.get("type") != "distance"
                             and _server_name(kind, x["field"]) == sf and x["op"] in ("in", "=")]
                 exact = len(positive) == 1
-            if sf in filters and exact and not c.get("fresh_days"):
+            if sf in filters and exact and not c.get("fresh_days") and c.get('discounted') is None:
                 # 有集成新鲜度时服务端没筛过时间, 不能信任, 必须本地复核
                 continue
             missing.add(f)
@@ -1046,7 +1077,7 @@ def tighten_distance_payload(kind, payload, conditions, coord_cache, notes):
 
 
 def search(kind, conditions, want=200, max_pages=25, progress=None,
-            corrections=None, stop=None, notes=None, page_size=500):
+            corrections=None, stop=None, notes=None, page_size=500, row_filter=None):
     """一次规划 -> 流式分页 -> 去重 -> 精确复核。
     返回 (rows, total_server, scanned)，终止原因记录在 notes。
     count 是后端封顶的候选数，不能据此判断已遍历全库。
@@ -1162,6 +1193,9 @@ def search(kind, conditions, want=200, max_pages=25, progress=None,
                 for c in conditions:
                     if c.get("type") == "distance":
                         match_distance(kind, r, c, coord_cache)
+                # Tool-specific checks run before a match consumes the result limit.
+                if row_filter is not None and not row_filter(r):
+                    continue
                 out.append(r)
                 if len(out) >= want:
                     reason = "已达到所需结果数，返回首批命中"

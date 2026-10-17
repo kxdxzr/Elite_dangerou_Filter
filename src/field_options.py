@@ -6,6 +6,7 @@ import threading
 import urllib.parse
 import urllib.request
 from runtime_paths import data_file
+from module_spec_pairs import BUNDLED_MODULE_PAIRS
 
 BASE = "https://spansh.co.uk/api"
 CACHE_FILE = data_file("field_values_cache.json")
@@ -14,168 +15,17 @@ _mem = {}
 _lock = threading.Lock()
 _refreshing = set()
 _refreshed = set()
-_specs = None  # {小写模块名: {"name": 原文, "class": [int], "rating": [str]}}
+_specs = None  # Entries retain real class/rating pairs as well as legacy marginals.
 _specs_dirty = False
 
 # 模块等级/级别封闭集合 (游戏机制决定, 本地内置)
 BUNDLED_MODULE_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 BUNDLED_MODULE_RATINGS = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]
-# 各模块默认规格子集 (全量普查实际在售数据内置; 磁盘学习库与运行时学习只增不减)
-# 格式: {"模块原文名": {"class": [int], "rating": [str]}}
+# Compatibility aggregate view, derived exclusively from the paired catalogue.
 BUNDLED_MODULE_SPECS = {
-    "AX Missile Rack": {"class": [2, 3], "rating": ["A", "B"]},
-    "AX Multi-Cannon": {"class": [2, 3], "rating": ["C", "E", "F"]},
-    "Abrasion Blaster": {"class": [1], "rating": ["D"]},
-    "Advanced Docking Computer": {"class": [1], "rating": ["E"]},
-    "Advanced Missile Rack": {"class": [1, 2], "rating": ["B"]},
-    "Advanced Multi-Cannon": {"class": [1, 2], "rating": ["E", "F"]},
-    "Advanced Planetary Approach Suite": {"class": [1], "rating": ["I"]},
-    "Advanced Plasma Accelerator": {"class": [3], "rating": ["B"]},
-    "Auto Field-Maintenance Unit": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["A", "B", "C", "D", "E"]},
-    "Balanced Power Distributor": {"class": [5], "rating": ["A"]},
-    "Beam Laser": {"class": [1, 2, 3, 4], "rating": ["A", "C", "D", "E", "F"]},
-    "Bi-Weave Shield Generator": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["C"]},
-    "Burst Laser": {"class": [1, 2, 3, 4], "rating": ["D", "E", "F", "G"]},
-    "Business Class Passenger Cabin": {"class": [3, 4, 5, 6], "rating": ["D"]},
-    "Cannon": {"class": [1, 2, 3, 4], "rating": ["B", "C", "D", "E", "F"]},
-    "Cargo Rack": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["E"]},
-    "Cargo Scanner": {"class": [0], "rating": ["A", "B", "C", "D", "E"]},
-    "Caustic Sink Launcher": {"class": [0], "rating": ["I"]},
-    "Chaff Launcher": {"class": [0], "rating": ["I"]},
-    "Collector Limpet Controller": {"class": [1, 3, 5, 7], "rating": ["A", "B", "C", "D", "E"]},
-    "Concord Cannon": {"class": [2], "rating": ["D"]},
-    "Corrosion Resistant Cargo Rack": {"class": [1, 4], "rating": ["E", "F"]},
-    "Cytoscrambler Burst Laser": {"class": [1], "rating": ["F"]},
-    "Decontamination Limpet Controller": {"class": [1, 3, 5, 7], "rating": ["E"]},
-    "Detailed Surface Scanner": {"class": [1], "rating": ["C", "I"]},
-    "Double Screaming Fragment Cannon": {"class": [1, 3], "rating": ["C", "E"]},
-    "Economy Class Passenger Cabin": {"class": [2, 3, 4, 5, 6], "rating": ["E"]},
-    "Electronic Countermeasure": {"class": [0], "rating": ["F"]},
-    "Enduring Feedback Rail Gun": {"class": [2], "rating": ["B"]},
-    "Enforcer Cannon": {"class": [1], "rating": ["F"]},
-    "Enhanced AX Missile Rack": {"class": [2, 3], "rating": ["B", "D", "E"]},
-    "Enhanced AX Multi-Cannon": {"class": [2, 3], "rating": ["B", "C", "D", "E"]},
-    "Enhanced Performance Thrusters": {"class": [2, 3], "rating": ["A"]},
-    "Enhanced Xeno Scanner": {"class": [0], "rating": ["C"]},
-    "Enzyme Missile Rack": {"class": [2], "rating": ["B"]},
-    "Experimental Weapon Stabiliser": {"class": [3, 5], "rating": ["F"]},
-    "Exposing Missiles": {"class": [3], "rating": ["A"]},
-    "Extended Cargo Rack": {"class": [5, 6], "rating": ["E"]},
-    "Far-Reaching Abrasion Blaster": {"class": [1], "rating": ["D"]},
-    "Fighter Hangar": {"class": [5, 6, 7], "rating": ["D"]},
-    "First Class Passenger Cabin": {"class": [4, 5, 6], "rating": ["C"]},
-    "Force Impact Cannon": {"class": [4], "rating": ["B"]},
-    "Fragment Cannon": {"class": [1, 2, 3], "rating": ["A", "C", "D", "E"]},
-    "Frame Shift Drive": {"class": [2, 3, 4, 5, 6, 7, 8], "rating": ["A", "B", "C", "D", "E"]},
-    "Frame Shift Drive (SCO)": {"class": [2, 3, 4, 5, 6, 7, 8], "rating": ["A", "B", "C", "D", "E"]},
-    "Frame Shift Drive Interdictor": {"class": [1, 2, 3, 4], "rating": ["A", "B", "C", "D", "E"]},
-    "Frame Shift Wake Scanner": {"class": [0], "rating": ["A", "B", "C", "D", "E"]},
-    "Fuel Scoop": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["A", "B", "C", "D", "E"]},
-    "Fuel Tank": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["C"]},
-    "Fuel Transfer Limpet Controller": {"class": [1, 3, 5, 7], "rating": ["A", "B", "C", "D", "E"]},
-    "Guardian FSD Booster": {"class": [1, 2, 3, 4, 5], "rating": ["H"]},
-    "Guardian Gauss Cannon": {"class": [1, 2], "rating": ["B", "D"]},
-    "Guardian Hull Reinforcement": {"class": [1, 2, 3, 4, 5], "rating": ["D", "E"]},
-    "Guardian Hybrid Power Distributor": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["A"]},
-    "Guardian Hybrid Power Plant": {"class": [2, 3, 4, 5, 6, 7, 8], "rating": ["A"]},
-    "Guardian Module Reinforcement": {"class": [1, 2, 3, 4, 5], "rating": ["D", "E"]},
-    "Guardian Nanite Torpedo Pylon": {"class": [2, 3], "rating": ["I"]},
-    "Guardian Plasma Charger": {"class": [1, 2, 3], "rating": ["B", "C", "D", "E", "F"]},
-    "Guardian Shard Cannon": {"class": [1, 2, 3], "rating": ["A", "C", "D", "F"]},
-    "Guardian Shield Reinforcement": {"class": [1, 2, 3, 4, 5], "rating": ["D", "E"]},
-    "Hatch Breaker Limpet Controller": {"class": [1, 3, 5, 7], "rating": ["A", "B", "C", "D", "E"]},
-    "Heat Sink Launcher": {"class": [0], "rating": ["I"]},
-    "Heavy Duty Module Reinforcement Package": {"class": [5], "rating": ["D"]},
-    "High-Yield Enzyme Missile Rack": {"class": [2], "rating": ["B"]},
-    "Hull Reinforcement Package": {"class": [1, 2, 3, 4, 5], "rating": ["D", "E"]},
-    "Imperial Hammer Rail Gun": {"class": [2], "rating": ["B"]},
-    "Kill Warrant Scanner": {"class": [0], "rating": ["A", "B", "C", "D", "E"]},
-    "Large Planetary Vehicle Hangar": {"class": [2, 4, 6], "rating": ["F"]},
-    "Life Support": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["A", "B", "C", "D", "E"]},
-    "Lightweight Alloy": {"class": [1], "rating": ["C", "I"]},
-    "Lockdown Seeker Missile Rack": {"class": [2], "rating": ["B"]},
-    "Long Range Detailed Surface Scanner": {"class": [1], "rating": ["I"]},
-    "Long Range Mining Laser": {"class": [1], "rating": ["D"]},
-    "Luxury Class Passenger Cabin": {"class": [5, 6], "rating": ["B"]},
-    "Meta Alloy Hull Reinforcement": {"class": [1, 2, 3, 4, 5], "rating": ["D", "E"]},
-    "Military Grade Composite": {"class": [1], "rating": ["A", "I"]},
-    "Mine Launcher": {"class": [1, 2], "rating": ["I"]},
-    "Mining Lance": {"class": [1], "rating": ["D"]},
-    "Mining Laser": {"class": [1, 2], "rating": ["D"]},
-    "Mining Multi Limpet Controller": {"class": [3], "rating": ["C", "E"]},
-    "Mining Volley Repeater": {"class": [3], "rating": ["C"]},
-    "Mirrored Surface Composite": {"class": [1], "rating": ["A", "I"]},
-    "Missile Rack": {"class": [1, 2, 3], "rating": ["A", "B"]},
-    "Mk II Ablative Lightweight Alloys": {"class": [1], "rating": ["C"]},
-    "Mk II Ablative Military Grade Composite": {"class": [1], "rating": ["A"]},
-    "Mk II Ablative Mirrored Surface Composite": {"class": [1], "rating": ["A"]},
-    "Mk II Ablative Reactive Surface Composite": {"class": [1], "rating": ["A"]},
-    "Mk II Ablative Reinforced Alloys": {"class": [1], "rating": ["B"]},
-    "Mk II Agile Boost Thrusters": {"class": [5], "rating": ["A"]},
-    "Mk II Business Class Passenger Cabin": {"class": [3, 4, 5, 6], "rating": ["D"]},
-    "Mk II Cargo Rack": {"class": [7, 8], "rating": ["D"]},
-    "Mk II Economy Class Passenger Cabin": {"class": [2, 3, 4, 5, 6], "rating": ["E"]},
-    "Mk II Gravity Optimised Thrusters": {"class": [7], "rating": ["A"]},
-    "Mk II Large Planetary Vehicle Hangar": {"class": [2, 4, 6], "rating": ["F"]},
-    "Mk II Mining Multi-Limpet Controller": {"class": [5], "rating": ["A"]},
-    "Mk II Plasma Shock Accelerator": {"class": [3], "rating": ["B"]},
-    "Mk II Supercharge Optimised Frame Shift Drive (SCO)": {"class": [8], "rating": ["A"]},
-    "Mk II Vessel Hangar": {"class": [5, 6, 7], "rating": ["D"]},
-    "MkII Business Class Passenger Cabin": {"class": [3, 4, 5], "rating": ["C"]},
-    "MkII Economy Class Passenger Cabin": {"class": [2, 3, 4, 5], "rating": ["D"]},
-    "Module Reinforcement Package": {"class": [1, 2, 3, 4, 5], "rating": ["D", "E"]},
-    "Multi-Cannon": {"class": [1, 2, 3, 4], "rating": ["A", "C", "E", "F", "G"]},
-    "Operations Multi Limpet Controller": {"class": [3], "rating": ["B", "C"]},
-    "Overloaded Beam Laser": {"class": [4], "rating": ["A"]},
-    "Pacifier Frag-Cannon": {"class": [3], "rating": ["C"]},
-    "Pack-Hound Missile Rack": {"class": [2], "rating": ["B"]},
-    "Planetary Approach Suite": {"class": [1], "rating": ["I"]},
-    "Planetary Vehicle Hangar": {"class": [2, 4, 6], "rating": ["G", "H"]},
-    "Plasma Accelerator": {"class": [2, 3, 4], "rating": ["A", "B", "C"]},
-    "Point Defence": {"class": [0], "rating": ["I"]},
-    "Power Distributor": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["A", "B", "C", "D", "E"]},
-    "Power Plant": {"class": [2, 3, 4, 5, 6, 7, 8], "rating": ["A", "B", "C", "D", "E"]},
-    "Prismatic Shield Generator": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["A"]},
-    "Prospector Limpet Controller": {"class": [1, 3, 5, 7], "rating": ["A", "B", "C", "D", "E"]},
-    "Pulse Disruptor Laser": {"class": [2], "rating": ["E"]},
-    "Pulse Laser": {"class": [1, 2, 3, 4], "rating": ["A", "D", "E", "F", "G"]},
-    "Pulse Wave Analyser": {"class": [0], "rating": ["A", "B", "C", "D", "E"]},
-    "Pulse Wave Xeno Scanner": {"class": [0], "rating": ["C"]},
-    "Rail Gun": {"class": [1], "rating": ["D"]},
-    "Rapid Phase Multi-Cannon": {"class": [2], "rating": ["E"]},
-    "Reactive Surface Composite": {"class": [1], "rating": ["A", "I"]},
-    "Recon Limpet Controller": {"class": [1, 3, 5, 7], "rating": ["E"]},
-    "Refinery": {"class": [1, 2, 3, 4], "rating": ["A", "B", "C", "D", "E"]},
-    "Regenerative Burst Laser": {"class": [2], "rating": ["F"]},
-    "Reinforced Alloy": {"class": [1], "rating": ["B", "I"]},
-    "Remote Release Flak Launcher": {"class": [2], "rating": ["B"]},
-    "Remote Release Flechette Launcher": {"class": [2], "rating": ["B"]},
-    "Repair Limpet Controller": {"class": [1, 3, 5, 7], "rating": ["A", "B", "C", "D", "E"]},
-    "Rescue Multi Limpet Controller": {"class": [3], "rating": ["C", "D"]},
-    "Research Limpet Controller": {"class": [1], "rating": ["E"]},
-    "Retributor Beam Laser": {"class": [1], "rating": ["E"]},
-    "Rocket Propelled FSD Disruptor": {"class": [2], "rating": ["B"]},
-    "Seeker Missile Rack": {"class": [1, 2, 3], "rating": ["A", "B"]},
-    "Seismic Charge Launcher": {"class": [2], "rating": ["B"]},
-    "Sensors": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["A", "B", "C", "D", "E"]},
-    "Shield Booster": {"class": [0], "rating": ["A", "B", "C", "D", "E"]},
-    "Shield Cell Bank": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["A", "B", "C", "D", "E"]},
-    "Shield Generator": {"class": [1, 2, 3, 4, 5, 6, 7, 8], "rating": ["A", "B", "C", "D", "E"]},
-    "Shock Cannon": {"class": [1, 2, 3], "rating": ["C", "D", "E", "F"]},
-    "Shock Mine Launcher": {"class": [1], "rating": ["I"]},
-    "Shutdown Field Neutraliser": {"class": [0], "rating": ["F"]},
-    "Standard Docking Computer": {"class": [1], "rating": ["E"]},
-    "Sub-Surface Displacement Missile": {"class": [1, 2], "rating": ["B"]},
-    "Sub-Surface Extraction Missile": {"class": [2], "rating": ["B"]},
-    "Supercruise Assist": {"class": [1], "rating": ["E"]},
-    "Support Focused Power Distributor": {"class": [3, 4, 6], "rating": ["A", "D"]},
-    "Thargoid Pulse Neutraliser": {"class": [0], "rating": ["E"]},
-    "Thrusters": {"class": [2, 3, 4, 5, 6, 7, 8], "rating": ["A", "B", "C", "D", "E"]},
-    "Torpedo Pylon": {"class": [1, 2, 3], "rating": ["I"]},
-    "Universal Multi Limpet Controller": {"class": [7], "rating": ["A", "C"]},
-    "Vessel Hangar": {"class": [5, 6, 7], "rating": ["D"]},
-    "Xeno Multi Limpet Controller": {"class": [3], "rating": ["B", "C"]},
-    "Xeno Scanner": {"class": [0], "rating": ["E"]},
+    name: {'class': sorted({cls for cls, _ in pairs}),
+           'rating': sorted({rating for _, rating in pairs})}
+    for name, pairs in BUNDLED_MODULE_PAIRS.items()
 }
 
 # 本地全量内置 (2026-10-04 从官方 field_values 拉取; 船48个/模块153个, 无大小写重名)
@@ -248,11 +98,6 @@ def _merge_ints(*lists):
                 seen.add(v)
                 out.append(v)
     return out
-
-
-# 模块等级/级别封闭集合 (游戏机制决定, 本地内置; 后台只增不减)
-BUNDLED_MODULE_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-BUNDLED_MODULE_RATINGS = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]
 
 
 def _bg_refresh(kind, field):
@@ -353,12 +198,23 @@ def _clean_spec_entry(name, val):
     name = str(val.get("name") or name).strip()
     if not name:
         return None
-    classes = sorted({_safe_int(x) for x in (val.get("class") or [])} - {None})
-    ratings = sorted({str(x).upper() for x in (val.get("rating") or [])
+    raw_classes = val.get('class') if isinstance(val.get('class'), (list, tuple)) else []
+    raw_ratings = val.get('rating') if isinstance(val.get('rating'), (list, tuple)) else []
+    classes = sorted({_safe_int(x) for x in raw_classes} - {None})
+    ratings = sorted({str(x).upper() for x in raw_ratings
                       if str(x).strip()})
     order = {v: i for i, v in enumerate(BUNDLED_MODULE_RATINGS)}
     ratings.sort(key=lambda v: (order.get(v, 999), v))
-    return name.casefold(), {"name": name, "class": classes, "rating": ratings}
+    pairs = set()
+    for pair in val.get('pairs', []) if isinstance(val.get('pairs'), list) else []:
+        if isinstance(pair, (list, tuple)) and len(pair) == 2:
+            cls, rating = pair
+            rating = str(rating).strip().upper()
+            if not isinstance(cls, bool) and str(cls) in {str(c) for c in BUNDLED_MODULE_CLASSES} and rating in BUNDLED_MODULE_RATINGS:
+                pairs.add((int(cls), rating))
+    classes = sorted(set(classes) | {cls for cls, _ in pairs})
+    ratings = sorted(set(ratings) | {rating for _, rating in pairs}, key=lambda v: (order.get(v, 999), v))
+    return name.casefold(), {"name": name, "class": classes, "rating": ratings, 'pairs': sorted(pairs)}
 
 
 def _merge_spec_entry(entry, val):
@@ -378,11 +234,16 @@ def _merge_spec_entry(entry, val):
             entry["rating"].append(rat)
             added += 1
     entry["rating"].sort(key=lambda v: (order.get(v, 999), v))
+    for pair in cleaned[1]['pairs']:
+        if pair not in entry.setdefault('pairs', []):
+            entry['pairs'].append(pair)
+            added += 1
+    entry['pairs'].sort()
     return added
 
 
 def _load_specs():
-    """规格学习库: 内置普查打底 + 磁盘学习库只增不减, 并清洗。"""
+    """Merge confirmed pairs; preserve old marginals without inventing pairs."""
     global _specs
     with _lock:
         if _specs is not None:
@@ -396,8 +257,8 @@ def _load_specs():
         except Exception:
             raw = {}
         cleaned = {}
-        for name, spec in BUNDLED_MODULE_SPECS.items():
-            item = _clean_spec_entry(name, {"name": name, **spec})
+        for name, pairs in BUNDLED_MODULE_PAIRS.items():
+            item = _clean_spec_entry(name, {'name': name, 'pairs': list(pairs)})
             if item is not None:
                 cleaned[item[0]] = item[1]
         for key, val in raw.items():
@@ -427,13 +288,15 @@ def save_module_specs():
         if not _specs_dirty or _specs is None:
             return False
         data = {v["name"]: {"name": v["name"], "class": v["class"],
-                            "rating": v["rating"]} for v in _specs.values()}
+                            "rating": v["rating"], 'pairs': v.get('pairs', [])} for v in _specs.values()}
         _specs_dirty = False
     try:
         with open(SPECS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=1)
         return True
     except Exception:
+        with _lock:
+            _specs_dirty = True
         return False
 
 
@@ -450,7 +313,7 @@ def learn_module_specs(items):
             key = name.casefold()
             entry = specs.get(key)
             if entry is None:
-                entry = {"name": name, "class": [], "rating": []}
+                entry = {"name": name, "class": [], "rating": [], 'pairs': []}
                 specs[key] = entry
             cls = _safe_int(it.get("class"))
             if cls is not None and cls not in entry["class"]:
@@ -462,6 +325,12 @@ def learn_module_specs(items):
                 entry["rating"].append(rat)
                 order = {v: i for i, v in enumerate(BUNDLED_MODULE_RATINGS)}
                 entry["rating"].sort(key=lambda v: (order.get(v, 999), v))
+                added += 1
+            pair = (cls, rat)
+            if (not isinstance(it.get('class'), bool) and str(it.get('class')) in {str(c) for c in BUNDLED_MODULE_CLASSES}
+                    and rat in BUNDLED_MODULE_RATINGS and pair not in entry.setdefault('pairs', [])):
+                entry['pairs'].append(pair)
+                entry['pairs'].sort()
                 added += 1
         if added:
             _specs_dirty = True
@@ -476,6 +345,22 @@ def get_module_specs(name):
         if entry is None:
             return None, None
         return list(entry["class"]), list(entry["rating"])
+
+
+def get_module_pairs(name):
+    """Known real pairs only. Legacy independent lists never imply combinations."""
+    specs = _load_specs()
+    with _lock:
+        entry = specs.get((name or '').strip().casefold())
+        return list(entry.get('pairs', [])) if entry else []
+
+
+def get_module_variants(names):
+    """Union of confirmed specifications for explicitly selected module names."""
+    if isinstance(names, str):
+        names = [names]
+    return [f'{cls}{rating}' for cls, rating in sorted({
+        pair for name in names or [] for pair in get_module_pairs(name)})]
 
 
 def _spec_options(known, bundled):

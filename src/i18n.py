@@ -2,6 +2,110 @@
 import re
 
 CATALOG = {
+    '是否打折': 'Discounted',
+    '规格': 'Specification',
+    '添加采购项': 'Add shopping item', '删除采购项': 'Remove shopping item',
+    '请至少添加一项采购模组／舰载武器': 'Add at least one module / ship weapon to the shopping list.',
+    '同一站点须同时满足全部采购项；同一行多选名称也要求全部有货。':
+        'One station must satisfy every shopping item; multiple names within a row must all be stocked too.',
+    '每项独立选择规格、折扣和新鲜度；到站距离留空不限，不核实购买数量。':
+        'Each item has its own specification, discount and freshness. Blank arrival distance is unrestricted; purchase quantities are not verified.',
+    '未确认此规格，可手填查询': 'Unconfirmed specification; manual search allowed.',
+    '规格请填写如 2C、5A，或选择不限': 'Enter a specification such as 2C or 5A, or select Any.',
+    '槽位类型': 'Slot type', '核心内部': 'Core internal', '可选内部': 'Optional internal',
+    '武器挂点': 'Weapon hardpoints', '通用插槽': 'Utility mounts', '其他／未分类': 'Other / Unclassified',
+    '基本信息': 'Basic information', '位置距离': 'Location and distance', '经济人口': 'Economy and population',
+    '条件分类': 'Condition group',
+    '工程师途中采购': 'Engineer trip shopping', '行程与航程': 'Trip and jump range',
+    '忽略航母': 'Ignore fleet carriers',
+    '忽略地面站': 'Ignore planetary stations',
+    '目标工程师／星系': 'Engineer / system',
+    '最多额外跳数（估算）': 'Max extra jumps (estimated)',
+    '最多额外跳数须为非负整数': 'Maximum extra jumps must be a non-negative integer.',
+    '星系坐标无效': 'Invalid system coordinates.', '航程或额外跳数过大': 'Jump range or extra-jump limit is too large.',
+    '采购模组／舰载武器': 'Modules / ship weapons to buy',
+    '请选择要采购的模组／舰载武器': 'Select the modules / ship weapons to buy.',
+    '前往工程师途中，寻找少绕路的模组／舰载武器售卖点，可筛选已知折扣。':
+        'Find module / ship-weapon retailers with short detours on your engineer trip, optionally requiring known discounts.',
+    '自动覆盖单跳和多跳；额外跳数相对直达估算。未验证实际航线，排序仅针对已取回的命中。':
+        'Single- and multi-jump trips are handled automatically. Extra jumps are estimated against a direct trip. Routes are unverified; only fetched matches are ranked.',
+    '跳数仅按距离估算，未验证实际航线；排序仅针对已取回的命中。':
+        'Jumps are distance-only estimates, not verified routes; only fetched matches are ranked.',
+    '请从列表选择目标舰船工程师': 'Select a ship engineer from the list.',
+    '出发星系': 'Departure system', '工程师星系': 'Engineer system',
+    '单跳航程 ly': 'Jump range ly', '到站距离小于 ls': 'Arrival distance below ls',
+    '采购模组／武器': 'Modules / weapons to buy',
+    '请填写出发星系和工程师星系': 'Enter the departure and engineer systems.',
+    '航程须为正数，到站距离须为非负数或留空':
+        'Jump range must be positive; arrival distance must be non-negative or blank.',
+    '请选择要采购的模组／武器': 'Select the modules / weapons to buy.',
+    '势力派系': 'Powers and factions', '站点设施': 'Station facilities',
+    '商品与舰船模组': 'Goods, ships and modules', '天体信息': 'Body information', '航母信息': 'Fleet carriers',
+    '殖民状态': 'Colonisation status', '数量统计': 'Counts', '异族战争': 'Thargoid war', '数据时间': 'Data timestamps',
+    '折扣按势力／地点已知规则核对同件商品；未确认规则不命中，不含个人优惠':
+        'Discounts use known Power/location rules for the same item; unconfirmed rules do not match. Personal bonuses excluded.',
+    '仅显示顺路中子星辅助目标（实验性功能）': 'Only aligned neutron-assisted targets (Experimental)',
+    '去程参考中子星': 'Outbound reference neutron star', '返程参考中子星': 'Return reference neutron star',
+    '顺路条件逐势力放宽：30°／10% → 45°／25% → 60°／50%，有结果即停；40／50 ly仅作内部参考，不用于排除候选，不保证实际省跳。':
+        'Relax alignment per Power: 30deg/10% -> 45deg/25% -> 60deg/50%, stop at first match. The 40/50 ly model is an internal hint only, not an exclusion rule or guarantee of jump savings.',
+    '中子辅助目标查找为实验性功能。顺路几何条件决定命中：逐势力30°／10% → 45°／25% → 60°／50%，有结果即停，投影不越过目标。40／50 ly模型仅作内部参考，不因模型未省跳而排除候选。仅使用来源200 ly内、到达距离≤100 Ls的中子星；未验证实际中转星或燃油，不保证实际省跳或全势力有结果。':
+        'Experimental neutron-assisted target finder. Geometry determines eligibility: per-Power tiers 30deg/10%,45deg/25%,60deg/50%, stopping at first match, projection within trip. The 40/50 ly model is an internal hint; zero estimated savings do not exclude a candidate. Anchors within 200 ly of source and arrival <=100 Ls only. Transfer stars and fuel unverified; savings and full Power coverage are not guaranteed.',
+    '仅使用来源200 ly内、到达距离≤100 Ls的中子星；不验证中转星或燃油，不保证全势力有结果。':
+        'Only neutron stars within 200 ly of source and arrival <=100 Ls; transfer stars and fuel unverified. Results for every Power are not guaranteed.',
+    '优先顺路': 'Strict alignment', '适度绕行': 'Moderate detour', '宽松候选': 'Relaxed candidate',
+    '顺路筛选档位': 'Alignment tier',
+    '一次扫描逐势力放宽：30°／10% → 45°／25% → 60°／50%，有结果即停；投影不越过目标，同一中子星须通过40／50 ly模型核对省跳。实验性估算，不保证实际省跳。':
+        'One scan, relax per Power: 30deg/10% -> 45deg/25% -> 60deg/50%, stop at first matching tier. Projection within trip; same neutron star must pass 40/50 ly jump-savings model. Experimental, not guaranteed.',
+    '仅显示顺路且预计省跳的中子辅助目标（实验性功能）':
+        'Only aligned neutron-assisted targets with estimated jump savings (Experimental)',
+    '顺路条件：夹角≤30°、投影不越过目标、额外绕行≤10%；同一中子星再用40／50 ly模型核对往返省跳。仅为实验性估算，不保证实际省跳或距离更短。':
+        'Alignment: angle <=30 deg, projection within trip, detour <=10%; verify round-trip savings via the same neutron star at 40/50 ly. Experimental estimates, not guaranteed savings or shorter distance.',
+    '顺路中子星': 'Aligned neutron star', '方向夹角 °': 'Direction angle (deg)', '额外绕行 ly': 'Extra detour (ly)',
+    '中子省跳筛选为实验性功能。先筛顺路中子星：夹角≤30°、沿途投影不越过目标、额外绕行≤10%；再按去程40 ly／返程50 ly、4倍增压核对预计往返省跳。同一候选中子星须同时满足两项；仅用来源200 ly内、到达距离≤100 Ls的中子星。不验证普通中转星、燃油或时间，不保证实际省跳或缩短总距离。':
+        'Experimental neutron filtering: angle <=30 deg, projection within trip, detour <=10%; then verify estimated round-trip savings via that same star at 40/50 ly with 4x charging. Anchors within 200 ly of source and arrival <=100 Ls only. Transfer stars, fuel and time unverified; no guaranteed savings or shorter distance.',
+    '中子省跳筛选为实验性功能。': 'Neutron jump-savings filtering is experimental. ',
+    '仅显示中子往返预计省跳的目的地（实验性功能）':
+        'Only destinations with estimated neutron round-trip jump savings (Experimental)',
+    '每个势力最多显示5个星系，同星系只算一个结果；空间站仅供参考，保留最近的合格站点。双击明细复制星系名。':
+        'At most 5 systems per Power, one result per system; the nearest eligible station is a reference only. Double-click to copy the system name.',
+    '个不同星系': 'distinct systems', '条分组结果': 'grouped results',
+    '每势力最多5个星系': 'at most 5 systems per Power',
+    '去程40 ly／返程50 ly；来源200 ly内中子星；到达距离≤100 Ls':
+        '40 ly outbound / 50 ly return; neutron stars within 200 ly of source; arrival <=100 Ls',
+    '位置模型估算往返省跳；普通中转星、燃油与飞行时间未验证，不保证实际航线可行。目录加载失败标为未完成。':
+        'Position-based round-trip estimates; transfer stars, fuel and travel time are unverified, not a guaranteed itinerary. Catalogue failures mean incomplete results.',
+    '位置估算：去程40 ly、返程50 ly；仅用来源200 ly内、到达距离≤100 Ls的中子星，4倍增压。不验证普通中转星、燃油或飞行时间；省跳不是实际航线保证。':
+        'Position estimate: 40 ly outbound / 50 ly return; 4x neutron anchors within 200 ly of source, arrival <=100 Ls. Transfer stars, fuel and travel time are unverified; savings are not guaranteed.',
+    '加载来源200 ly内中子星': 'Loading neutron stars within 200 ly of source',
+    '预计节省跳数': 'Estimated jumps saved',
+    '去程增压中子星': 'Outbound neutron anchors',
+    '返程增压中子星': 'Return neutron anchors',
+    '仅显示中子往返预计省跳的目的地': 'Only destinations with estimated neutron round-trip jump savings',
+    '去程40 ly／返程50 ly；不使用配船；最多评估50个目的地':
+        '40 ly outbound / 50 ly return; no ship build; at most 50 destinations',
+    '中子筛选按往返总跳数比较普通直线理论下限，不核算燃油；未证明省跳的不显示，失败或达到评估上限标为未完成。':
+        'Compare estimated round-trip jumps against the ordinary straight-line lower bound, without fuel modelling. Unproven savings are hidden; failures or budget limits mean incomplete results.',
+    '固定跳距估算：去程40 ly、返程50 ly；不核算燃油。普通跳数为直线理论下限，不是实测路线；仅保留预计往返总跳数更少的目的地。':
+        'Fixed-range estimate: 40 ly outbound, 50 ly return; no fuel modelling. Ordinary jumps are a straight-line theoretical minimum, not a plotted route; keep only lower estimated neutron round-trip totals.',
+    '去程预计跳数': 'Estimated outbound jumps', '返程预计跳数': 'Estimated return jumps',
+    '普通往返理论最少跳数': 'Ordinary round-trip lower bound', '中子往返预计跳数': 'Estimated neutron round-trip jumps',
+    '预计至少少跳': 'Estimated minimum jumps saved', '中子往返评估': 'Neutron round-trip evaluation',
+    '中子筛选已启用；失败或未评估详情见检索说明。': 'Neutron filter enabled; see search notes for failures or unevaluated destinations.',
+    '中子筛选未完成，仅导出已确认符合条件的部分结果？': 'Neutron filtering is incomplete. Export confirmed matching partial results only?',
+    '已达到中子目的地评估上限': 'Neutron destination evaluation limit reached',
+    '缺少目的地星系名': 'Missing destination system name',
+    '中子路线无法评估或未评估': 'Neutron routes unavailable or unevaluated',
+    '个目的地；不代表不省跳': 'destinations; this does not establish no jump savings',
+    '已停止中子评估；仅保留已完成比较的目的地。': 'Neutron evaluation stopped; only completed destination comparisons are retained.',
+    '所选舰船与跳跃属性': 'Selected ship and jump attributes',
+    '船型': 'Ship type', '舰船名称': 'Ship name', '舰船编号': 'Ship ID',
+    '普通满油跳距': 'Normal full-tank range', '中子增压后跳距': 'Neutron-supercharged range',
+    '满油总质量 t': 'Full-tank total mass t', '主油箱 t': 'Main tank t',
+    '单跳最大燃油 t': 'Maximum fuel per jump t', 'FSD 最优质量 t': 'FSD optimal mass t',
+    '守护者增程 ly': 'Guardian boost ly', '无法计算跳跃属性': 'Cannot calculate jump attributes',
+    '正在读取跳跃属性…': 'Loading jump attributes…',
+    '理论单跳：主油箱与备用油箱满油，使用当前货物质量，不含注入；不代表当前位置可中子增压，实际路线受储备燃油等设置限制。':
+        'Theoretical single jump: full main/auxiliary tanks and current cargo, no injection. Neutron charging may not be available here; reserve fuel and other settings constrain the actual route.',
     '中子星跳跃规划器': 'Neutron jump planner', '舰船配置收藏': 'Ship build favourites',
     '新增舰船配置': 'Add ship build', '编辑舰船配置': 'Edit ship build',
     '收藏名称': 'Favourite name', '保存舰船配置': 'Save ship build',

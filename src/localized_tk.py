@@ -102,20 +102,85 @@ class Combobox(TextMixin, base.Combobox):
 
 class Treeview(base.Treeview):
     def __init__(self, master=None, **kw):
+        self._sortable = kw.pop('sortable', True)
+        self._sort_column, self._sort_descending, self._sort_after = None, False, None
+        self._sort_commands, self._custom_headings = {}, set()
         super().__init__(master, **kw)
         self._manager = manager(self)
         self._headings, self._items = {}, {}
+        self.bind('<Destroy>', self._cleanup_sort, add='+')
         if self._manager:
             self._manager.register(self._render)
             self.bind('<Destroy>', lambda e: self._manager.callbacks.discard(self._render)
                       if e.widget is self else None, add='+')
 
     def heading(self, column, option=None, **kw):
+        column = str(column)
+        if 'command' in kw:
+            self._custom_headings.add(column)
+        elif kw and self._sortable and column not in self._custom_headings:
+            if column not in self._sort_commands:
+                self._sort_commands[column] = self.register(lambda column=column: self.sort_by(column))
+            kw['command'] = self._sort_commands[column]
         if 'text' in kw:
             self._headings[column] = kw['text']
-            if self._manager:
-                kw['text'] = self._manager.tr(kw['text'])
+            kw['text'] = self._heading_title(column, kw['text'])
         return super().heading(column, option, **kw)
+
+    def _heading_title(self, column, text):
+        title = self._manager.tr(text) if self._manager else text
+        if column == self._sort_column:
+            title = f'{title} {"▼" if self._sort_descending else "▲"}'
+        return title
+
+    def sort_by(self, column):
+        """Toggle view order, preserving item identities, selection and model order."""
+        column = str(column)
+        if not self._sortable or column not in (*self.cget('columns'), '#0'):
+            return
+        self._sort_descending = not self._sort_descending if column == self._sort_column else False
+        self._sort_column = column
+        if self._sort_after is not None:
+            self.after_cancel(self._sort_after)
+            self._sort_after = None
+        self._apply_sort()
+
+    def _apply_sort(self):
+        from result_sort import sorted_cells
+        self._sort_after = None
+        if self._sort_column is None:
+            return
+        parents = ['']
+        while parents:
+            parent = parents.pop()
+            children = self.get_children(parent)
+            values = ((item, self.item(item, 'text') if self._sort_column == '#0' else
+                       self.set(item, self._sort_column)) for item in children)
+            for index, item in enumerate(sorted_cells(values, self._sort_descending)):
+                self.move(item, parent, index)
+            parents.extend(children)
+        for key, text in self._headings.items():
+            super().heading(key, text=self._heading_title(key, text))
+
+    def _queue_sort(self):
+        if self._sort_column is not None and self._sort_after is None:
+            self._sort_after = self.after_idle(self._apply_sort)
+
+    def _cleanup_sort(self, event):
+        if event.widget is self and self._sort_after is not None:
+            self.after_cancel(self._sort_after)
+            self._sort_after = None
+
+    def set_columns(self, columns):
+        """Replace a dynamic schema without retaining obsolete localized headers."""
+        self._headings.clear()
+        self.configure(columns=columns, displaycolumns=columns)
+        if self._sort_column not in (*self.cget('columns'), '#0'):
+            self._sort_column, self._sort_descending = None, False
+        for column in set(self._sort_commands) - set(self.cget('columns')) - {'#0'}:
+            self.deletecommand(self._sort_commands.pop(column))
+        self._custom_headings.intersection_update((*self.cget('columns'), '#0'))
+        self._queue_sort()
 
     def insert(self, parent, index, iid=None, **kw):
         raw = kw.get('values', ())
@@ -123,6 +188,7 @@ class Treeview(base.Treeview):
             kw['values'] = self._display_values(raw)
         item = super().insert(parent, index, iid, **kw)
         self._items[item] = tuple(raw)
+        self._queue_sort()
         return item
 
     def _display_values(self, values):
@@ -140,10 +206,11 @@ class Treeview(base.Treeview):
 
     def _render(self):
         for key, text in self._headings.items():
-            super().heading(key, text=self._manager.tr(text))
+            super().heading(key, text=self._heading_title(key, text))
         for key, values in self._items.items():
             if self.exists(key):
                 super().item(key, values=self._display_values(values))
+        self._queue_sort()
 
 
 class Toplevel(tk.Toplevel):

@@ -10,11 +10,25 @@ An Elite Dangerous system and station filtering desktop tool powered by [Spansh]
 
 Repository: [kxdxzr/Elite_dangerous_Filter](https://github.com/kxdxzr/Elite_dangerous_Filter). Developed by **GPT-6.1 Sol** through **vibe coding**, with ongoing user-driven iteration.
 
-> **v0.1.2: the colonisation candidate finder is released; the pirate massacre finder is still being tested.** Pirate results are candidate source/target pairs, not guaranteed live missions, issuer counts or RES availability. Inferred ring-based RES and explicit site records are labelled separately. Verify results in game.
+All CSV exports start with five `# `-prefixed provenance rows: GitHub project author (`kxdxzr`), project name, version **0.1.3**, timezone-aware export time and project URL. A blank row follows, then the result header and data. Labels follow the UI language; English exports use English labels. Main-window CSV columns follow the completed search conditions instead of exporting raw JSON. CSV readers must skip the five provenance rows and blank separator. Metadata identifies the software, not ownership of upstream game data; existing CSV files are not modified.
+
+> **v0.1.3: engineer shopping lists, known discounts, paired specifications, sortable results and the neutron jump planner are included in the Windows EXE.** [Release notes](docs/releases/v0.1.3.md). Pirate finding remains in testing; stock, discounts, access and actual routes require in-game verification.
 
 ## Download and run
 
-[**Download Windows EXE**](https://github.com/kxdxzr/Elite_dangerous_Filter/releases/download/v0.1.2/EliteDangerousFilter.exe) · [v0.1.2 release notes](docs/releases/v0.1.2.md) · [All releases](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
+**Sortable results (v0.1.3):** click a header to toggle ascending/descending order. Numbers sort numerically, dates account for UTC offsets, names use natural ordering and unknowns remain last. Sorting survives localisation/streaming and preserves copy identity without changing model/route order. The waypoint editor is not sortable; route CSV retains actual route order.
+
+**Engineer shopping lists:** add/remove independently specified modules or ship weapons. A candidate station must stock **every** requested item, meeting each item's specification, discount and freshness requirements. Multiple names in one shopping row also mean ALL; main-window OR filters are unchanged. Lists/drafts survive sessions, and results/CSV show evidence per item. This does not verify quantities or plan purchases across multiple stations.
+
+**Paired specifications (v0.1.3):** one Specification selector offers confirmed combinations for all 153 bundled module/weapon names, e.g. Plasma Accelerator **2C / 3B / 4A**. Learning/caches retain the pairs rather than inventing a Cartesian product. Legacy conditions remain valid and unlisted specifications may still be entered manually.
+
+**[Engineer trip shopping](docs/engineer-shopping.md) (v0.1.3):** find one station stocking the entire specified list on the way to one of 25 ship-engineer systems. Each item has its own specification, discount and freshness. Custom range, automatic multi-jump estimates, arrival `ls`, maximum extra estimated jumps, carrier/planetary-station exclusions, saved drafts and per-item CSV evidence are supported. Defaults: 80 ly, at most one extra estimated jump, arrival below 1500 ls, discounts required, carriers ignored, planetary shopping stations allowed. Ranking covers fetched matches only; quantities and split-station baskets are not planned. **Estimated jumps are not verified routes.**
+
+**Main-window browsing and results (v0.1.3):** condition categories and module slot types shorten candidate lists without changing filter semantics or clearing names. Sessions preserve drafts and condition files retain slot choices. Results/CSV use separate condition-driven distances, module name/class/rating and discount/source columns, with horizontal scrolling instead of a packed information column.
+
+**Ship/module discounts:** **Any / True** only, for positive name comparisons. Eligibility follows [documented public station/Power rules](docs/station-discounts.md), not a standard-price download or a guess based on associated Power. The same item must match name, module specification and an applicable rule. Li Yong-Rui requires the controlling Power and Fortified/Stronghold state. Known location-specific and product-restricted rules are checked explicitly; unmatched/missing evidence is unknown, never a verified full price. Discount % is the percentage reduction (15 means 15% off), shown separately from its source in results and CSV. Personal rank/pledge rewards, expired CG discounts and unverified stacking are excluded. Verify stock, permits and final price in game.
+
+[**Download Windows EXE v0.1.3**](https://github.com/kxdxzr/Elite_dangerous_Filter/releases/download/v0.1.3/EliteDangerousFilter.exe) · [v0.1.3 release notes](docs/releases/v0.1.3.md) · [All releases](https://github.com/kxdxzr/Elite_dangerous_Filter/releases)
 
 Run `EliteDangerousFilter.exe` on 64-bit Windows; no Python installation is needed. Searches require an internet connection, but no API key.
 
@@ -39,9 +53,9 @@ Select **中文 / English** on the main window to switch all tool windows immedi
 - **Carrier parking finder:** up to 50 ly; use carrier station types catalogued by Spansh to find parking candidates, with optional inclusive minimum/maximum carrier counts. Incomplete types remain Unknown; counts are not live vacancies.
 - **Rare goods target finder:** 142 source entries across 138 systems, default Ngurii and a 200–220 ly target range. Select an associated Power or scan all 12. Requires large pads; excludes planetary stations, carriers and colonisation ships. Each Power starts at ≤100 Ls and expands to ≤1000 Ls only after a complete search finds no matches. Shows up to five targets per Power, ordered by ly then Ls.
 - **Pirate massacre candidates (testing):** EDTools source/target pairs and site records, with Spansh faction, issuer-count, controlling Power, source-station and target-ring filters.
-- **Utilities:** system midpoint, cancellation, diagnostics, CSV export, condition files and session restoration for the main window and all five tools.
+- **Utilities:** system midpoint, cancellation, diagnostics, sortable tables, CSV export, condition files and session restoration across all tool windows.
 
-## New in v0.1.2
+## Existing tools and usage (introduced in v0.1.2)
 
 ### Colonisation candidate finder
 
@@ -78,7 +92,7 @@ The tool keeps its name. Enter optional **Min carriers / Max carriers** to filte
 
 See [detailed rules](docs/README_search_logic.md) and the [v0.1.2 release notes](docs/releases/v0.1.2.md). The screenshot gallery below is still from v0.1.1 and does not illustrate these additions.
 
-**Updated v0.1.2 formatting:** ly distances across the main results and all tools use exactly two decimal places; population uses integers, and large numeric results use comma grouping (for example `1,234.50 ly`, population `1,234,567`, value `55,000 Cr`). Human-readable CSV columns and CLI text follow the same convention. Filter inputs, calculations, IDs and raw JSON remain unchanged; the main CSV's `distances_json` uses formatted strings while `raw_json` retains the original values.
+**Updated v0.1.2 formatting:** ly distances across the main results and all tools use exactly two decimal places; population uses integers, and large numeric results use comma grouping (for example `1,234.50 ly`, population `1,234,567`, value `55,000 Cr`). Human-readable CSV columns and CLI text follow the same convention. Main CSV exports identity plus actual values for the completed search's conditions, with separate distance columns per reference system; full raw JSON is no longer exported. Editing conditions without rerunning does not change the exported columns. Route CSV omits repeated internal completion/failure/status columns; incomplete-route confirmation remains.
 
 Arrival distances in Ls also use exactly two decimal places throughout result tables, CSV distance columns and CLI text (for example `1,279.41 Ls`). Missing distances remain unknown, not `0.00`; this formatting does not affect Ls filter comparisons.
 
@@ -88,15 +102,20 @@ Arrival distances in Ls also use exactly two decimal places throughout result ta
 
 **Updated v0.1.2 progress:** main search and all tools show measured stage counts and percentages when a denominator is known (candidate checks, station checks, body/ring batches or requested midpoint results). Percentages describe the labelled stage, not an estimated end-to-end duration. Network preparation and capped/unknown totals remain explicitly indeterminate with known counts; page budgets are not presented as a whole-database total. Stopped, failed or incomplete searches are distinguished from completed searches.
 
-The updated rare-goods detail table and CSV omit the redundant **Range** column. The 100 Ls / 1000 Ls fallback rule is unchanged. Re-download the asset from the existing v0.1.2 release to obtain these updates; no new version is created.
+The rare-goods detail table and CSV omit the redundant **Range** column. The 100 Ls / 1000 Ls fallback rule remains; v0.1.3 also deduplicates destinations by system. Download the latest v0.1.3 asset for all current updates.
 
-**Further local source changes (not yet in the downloadable EXE):** colonisation columns/CSV now start with candidate name → top-three scan-value planets → nearest populated system → nearest distance → maximum pad → other information. Visible copy buttons cover the main result name/system, carrier and midpoint systems, rare-goods system/station, pirate source/target/source station, and colonisation candidate/nearest system. Select a result first; absent selection or empty fields show a prompt without clearing the clipboard. Existing double-click shortcuts are retained (and added for midpoint results).
+**Further improvements included in v0.1.3:** colonisation columns/CSV start with candidate name → top-three scan-value planets → nearest populated system → nearest distance → maximum pad → other information. Copy buttons cover relevant result names/systems/stations across the main and tool windows. Absent selection or empty fields show a prompt without clearing the clipboard. Double-click shortcuts remain available.
 
-## Neutron jump planner (local source addition)
+## Neutron jump planner (included in v0.1.3)
 
-Open **Neutron jump planner** on the main window. Neutron supercharging is enabled by default. It uses Spansh's exact-plotter backend for ship-specific fuel and refuelling calculations, not the simpler fixed-range neutron router. This new sixth tool is not yet included in the downloadable v0.1.2 EXE.
+Rare-goods filtering is **experimental**: a single search reuses scanned candidates and progressively relaxes alignment per Power (30°/10% detour → 45°/25% → 60°/50%), stopping at that Power's first geometric matching tier. Projection must remain within the trip. The 40/50 ly model is only an internal hint/tie-breaker, never an exclusion rule: zero estimated savings or unavailable hints do not remove aligned candidates. It displays tier, reference neutron stars, angle and detour; no jump-count or landing-system columns, and no guaranteed savings or full Power coverage.
+
+The optional **aligned neutron-assisted target finder** uses neutron stars within **200 ly of the selected goods source** (Ngurii by default), with arrival distance **<=100 Ls**. Eligibility is geometric, independent of the fixed 40/50 ly hint. Transfer stars, fuel and travel time are unverified; reference stars do not imply confirmed boosted-jump benefits. See [details](docs/route-planner.md#rare-goods-destination-filter).
+
+Open **Neutron jump planner** on the main window. Neutron supercharging is enabled by default. It uses Spansh's exact-plotter backend for ship-specific fuel and refuelling calculations, not the simpler fixed-range neutron router. It is included in the downloadable v0.1.3 EXE.
 
 - **Ship build favourites:** paste/import one Coriolis JSON or EDSY SLEF export, name it, then select, edit, rename or delete it locally. No route-favourites library or account system. Favourites use atomic writes to `route_ship_favorites.json` in the application's data directory and are excluded from Git.
+- **Selected ship preview:** shows only ship type/name and theoretical normal/neutron-supercharged full-tank ranges, without ship IDs, multipliers or technical drive parameters. Changing cargo recalculates the preview. Ranges assume full main/auxiliary tanks and no injection; they are not a guarantee of an available neutron star or a route satisfying reserve-fuel settings. Missing/unsupported data is reported instead of guessed.
 - **Online calculation:** the selected build and route points are sent to Spansh. The first parse downloads a pinned EDCD/coriolis-data FSD catalogue and caches it locally. Unsupported drive/ship data is rejected rather than guessed; EDSY SLEF is preferred for unusual builds.
 - **Ordered waypoints:** add, remove and move points up/down. Every leg independently assumes a **full main tank at departure**, without inherited fuel or supercharge state. The already-supercharged option applies only to leg one. Multi-leg submissions require confirmation; waypoints do **not** guarantee refuelling.
 - **Results / CSV:** system, leg, ly distances, fuel, refuelling/neutron/injection flags and waypoints. Shared endpoints are merged, but prior arrival fuel and next assumed departure fuel are separate. Every leg start carries a full-tank warning. Copy selected system names or export CSV; partial exports require confirmation and retain explicit incomplete status.
